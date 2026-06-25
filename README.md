@@ -2,7 +2,7 @@
 
 本项目是一个"公众号知识演化系统"，用于自动采集公众号文章，将其转换为 Markdown 知识库，并通过多 Agent 系统进行语义分析、观点对比与知识演化，最终形成可持续更新的知识体系。
 
-> Agent 协作规范详见 [agent.md](./agent.md)
+> Agent 协作规范详见 [AGENTS.md](./AGENTS.md)
 
 ## ✨ 主要特性
 
@@ -89,7 +89,7 @@ wechat-knowledge-base/
 │   ├── evolution/              # 演化链 JSON 文件
 │   └── index.json              # 文章索引清单
 ├── .env.example                # 环境变量示例
-├── agent.md                    # Agent 协作规范
+├── AGENTS.md                   # Agent 协作规范
 ├── tsconfig.json
 └── package.json
 ```
