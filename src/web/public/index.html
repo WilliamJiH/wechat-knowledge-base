@@ -50,11 +50,11 @@
   <nav class="flex">
     <button onclick="showTab('wechat')" id="tab-wechat" class="tab-btn px-4 py-2.5 text-sm text-gray-500 tab-active">微信订阅</button>
     <button onclick="showTab('history')" id="tab-history" class="tab-btn px-4 py-2.5 text-sm text-gray-500">执行历史</button>
-    <button onclick="showTab('prompts')" id="tab-prompts" class="tab-btn px-4 py-2.5 text-sm text-gray-500">Agent Prompts</button>
+    <button onclick="showTab('prompts')" id="tab-prompts" class="tab-btn px-4 py-2.5 text-sm text-gray-500">提示词</button>
   </nav>
 </header>
 
-<main class="max-w-4xl mx-auto px-4 py-6 space-y-4">
+<main class="w-full max-w-[1500px] mx-auto px-6 py-6 space-y-4">
 
   <!-- ===== 快速爬取 ===== -->
   
@@ -73,7 +73,8 @@
     </div>
   </section>
 
-  <section id="pane-wechat" class="space-y-4">
+  <section id="pane-wechat" class="grid grid-cols-[repeat(auto-fit,minmax(420px,1fr))] gap-4 items-start">
+    <div class="space-y-4">
     <div class="bg-white rounded-xl shadow-sm border p-6">
       <div class="flex items-center justify-between gap-4 mb-4">
         <div>
@@ -95,6 +96,7 @@
       </div>
     </div>
 
+
     <div class="bg-white rounded-xl shadow-sm border p-6">
       <h2 class="text-base font-semibold mb-4">搜索并订阅公众号</h2>
       <div class="flex gap-2">
@@ -102,31 +104,33 @@
           placeholder="输入公众号名称或关键词" />
         <button onclick="searchWechatBizUi()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition">搜索</button>
       </div>
-      <div id="wechatSearchResults" class="mt-4 space-y-2 text-sm text-gray-400"></div>
+      <div id="wechatSearchResults" class="mt-4 space-y-2 text-sm text-gray-400 max-h-96 overflow-y-auto pr-1"></div>
+    </div>
     </div>
 
+    <div class="space-y-4">
     <div class="bg-white rounded-xl shadow-sm border p-6">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-base font-semibold">已订阅公众号</h2>
         <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500">文章数量</span>
           <input id="wechatSyncCount" type="number" value="5" min="1" max="20"
             class="w-20 border rounded-lg px-2 py-1.5 text-sm" />
           <button onclick="syncWechatSubscriptions(true)" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition">只取链接</button>
           <button onclick="syncWechatSubscriptions(false)" class="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition">同步入库</button>
         </div>
       </div>
-      <div id="wechatSubscriptions" class="space-y-2 text-sm text-gray-400"></div>
+      <div id="wechatSubscriptions" class="space-y-2 text-sm text-gray-400 max-h-80 overflow-y-auto pr-1"></div>
       <div id="wechatSyncResults" class="mt-4 border-t pt-4 hidden">
         <h3 class="text-sm font-semibold text-gray-700 mb-2">同步结果</h3>
-        <div id="wechatSyncList" class="space-y-2 text-xs"></div>
+        <div id="wechatSyncList" class="space-y-2 text-xs max-h-72 overflow-y-auto pr-1"></div>
       </div>
     </div>
-  
-<div id="wechatTaskPanel" class="space-y-4">
-    <!-- 创建表单 -->
+
     <div class="bg-white rounded-xl shadow-sm border p-6">
-      <h2 class="text-base font-semibold mb-4"> 创建定时任务</h2>
-      <div class="grid grid-cols-2 gap-4">
+      <h2 class="text-base font-semibold mb-2">定时任务</h2>
+      <p class="text-sm text-gray-400 mb-4">定时任务会从已订阅公众号拉取上方设置的文章数量。</p>
+      <div class="grid grid-cols-1 gap-4">
         <div>
           <label class="block text-xs text-gray-500 mb-1">采集间隔（小时）</label>
           <input type="number" id="newInterval" value="6" min="0.1" step="0.5"
@@ -138,11 +142,6 @@
             <button onclick="setIntervalVal(24)"  class="text-xs px-2.5 py-1 bg-gray-100 rounded hover:bg-blue-100 transition">24h</button>
             <button onclick="setIntervalVal(168)" class="text-xs px-2.5 py-1 bg-gray-100 rounded hover:bg-blue-100 transition">7天</button>
           </div>
-        </div>
-        <div>
-          <label class="block text-xs text-gray-500 mb-1">链接列表（每行一个）</label>
-          <textarea id="newUrls" rows="4" placeholder="https://mp.weixin.qq.com/s/xxxxx"
-            class="mono w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none resize-y bg-gray-50"></textarea>
         </div>
       </div>
       <button onclick="createTask()"
@@ -157,7 +156,7 @@
         <h3 class="text-sm font-semibold text-gray-700">任务列表</h3>
         <button onclick="loadTasks()" class="text-xs text-blue-500 hover:underline">刷新</button>
       </div>
-      <div id="taskList" class="space-y-3 text-sm text-gray-400">加载中...</div>
+      <div id="taskList" class="space-y-3 text-sm text-gray-400 max-h-80 overflow-y-auto pr-1">加载中...</div>
     </div>
   </div>
 </section>
@@ -261,9 +260,9 @@ function showProgressPanel(sessionId, urls) {
   const panel = document.getElementById('progressPanel');
   panel.classList.remove('hidden');
   document.getElementById('reportLinks').classList.add('hidden');
-  document.getElementById('reportLinkList').innerHTML = '??';
+  document.getElementById('reportLinkList').innerHTML = '';
   const list = document.getElementById('progressList');
-  list.innerHTML = '??';
+  list.innerHTML = '';
 
   const urlEls = {};
   urls.forEach(url => {
@@ -284,7 +283,7 @@ function showProgressPanel(sessionId, urls) {
     const stepsEl = div.querySelector('.url-steps');
     STEPS_ORDER.forEach(s => {
       const chip = document.createElement('span');
-      chip.id = `chip-${sessionId}-${btoa(url).replace(/=/g,'??').slice(0,10)}-${s}`;
+      chip.id = `chip-${sessionId}-${btoa(url).replace(/=/g,'').slice(0,10)}-${s}`;
       chip.className = 'chip chip-gray';
       chip.textContent = STEP_LABELS[s] || s;
       stepsEl.appendChild(chip);
@@ -307,7 +306,7 @@ function connectSSE(sessionId, urls, btn) {
     const el = urlEls[d.url];
     if (!el) return;
 
-    const keyPart = btoa(d.url).replace(/=/g,'??').slice(0,10);
+    const keyPart = btoa(d.url).replace(/=/g,'').slice(0,10);
     const idx = STEPS_ORDER.indexOf(d.step);
 
     // 之前步骤全部变绿
@@ -397,21 +396,24 @@ async function loadTasks() {
         <details class="mt-2">
           <summary class="text-xs text-blue-500 cursor-pointer hover:underline">查看链接 · 上次 ${t.lastRunAt ? new Date(t.lastRunAt).toLocaleString('zh-CN') : '从未'} · 下次 ${t.nextRunAt ? new Date(t.nextRunAt).toLocaleString('zh-CN') : '-'}</summary>
           <ul class="mt-1.5 ml-2 space-y-0.5 mono text-xs text-gray-500">
-            ${t.urls.map(u => `<li class="truncate" title="${escapeHtml(u)}">${escapeHtml(u)}</li>`).join('??')}
+            ${t.urls.map(u => `<li class="truncate" title="${escapeHtml(u)}">${escapeHtml(u)}</li>`).join('')}
           </ul>
         </details>
       </div>
-    `).join('??');
+    `).join('');
   } catch (e) { el.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`; }
 }
 
 async function createTask() {
   const intervalHours = parseFloat(document.getElementById('newInterval').value);
-  const urls = document.getElementById('newUrls').value.split('\n').map(s => s.trim()).filter(Boolean);
-  if (!urls.length) { alert('请输入链接'); return; }
-  if (!intervalHours || intervalHours < 0.1) { alert('间隔最少 0.1 小时'); return; }
+  const count = parseInt(document.getElementById('wechatSyncCount').value || '5', 10);
+  if (!intervalHours || intervalHours < 0.1) { alert('Interval must be at least 0.1 hour.'); return; }
+
+  const { synced } = await apiFetch('/api/wechat/sync', { method: 'POST', body: { count, urlsOnly: true } });
+  const urls = [...new Set((synced || []).map(item => item.url).filter(Boolean))];
+  if (!urls.length) { alert('No article links found from subscriptions.'); return; }
+
   await apiFetch('/api/tasks', { method: 'POST', body: { urls, intervalHours } });
-  document.getElementById('newUrls').value = '??';
   loadTasks();
 }
 
@@ -444,17 +446,17 @@ async function loadHistory() {
     };
     el.innerHTML = history.map(h => `
       <div class="flex items-start gap-2.5 border-b border-gray-100 py-2 last:border-0">
-        ${badge[h.status] || '??'}
+        ${badge[h.status] || ''}
         <div class="flex-1 min-w-0">
           <p class="mono text-xs text-gray-600 truncate" title="${escapeHtml(h.url)}">${escapeHtml(h.url)}</p>
-          ${h.error  ? `<p class="text-xs text-red-400 mt-0.5">${escapeHtml(h.error)}</p>` : '??'}
-          ${h.docId  ? `<p class="mono text-xs text-gray-400 mt-0.5">${h.docId}</p>` : '??'}
+          ${h.error  ? `<p class="text-xs text-red-400 mt-0.5">${escapeHtml(h.error)}</p>` : ''}
+          ${h.docId  ? `<p class="mono text-xs text-gray-400 mt-0.5">${h.docId}</p>` : ''}
         </div>
         <span class="text-xs text-gray-400 shrink-0 whitespace-nowrap">
           ${new Date(h.startedAt).toLocaleString('zh-CN')}
         </span>
       </div>
-    `).join('??');
+    `).join('');
   } catch (e) { el.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`; }
 }
 setInterval(loadHistory, 15000);
@@ -479,10 +481,10 @@ async function refreshWechatStatus() {
     const data = await apiFetch('/api/wechat/status');
     btn.disabled = !!data.login.running;
     btn.textContent = data.login.running ? '等待扫码...' : '生成登录二维码';
-    errEl.textContent = data.login.error || '??';
+    errEl.textContent = data.login.error || '';
 
     if (data.loggedIn) {
-      const account = data.session?.account?.name ? ` · ${data.session.account.name}` : '??';
+      const account = data.session?.account?.name ? ` · ${data.session.account.name}` : '';
       statusEl.textContent = `已登录${account} · 更新于 ${new Date(data.session.updatedAt).toLocaleString('zh-CN')}`;
       statusEl.className = 'text-sm text-green-600 mt-1';
       qrBox.classList.add('hidden');
@@ -510,7 +512,7 @@ async function refreshWechatStatus() {
 }
 
 async function startWechatLogin() {
-  document.getElementById('wechatLoginError').textContent = '??';
+  document.getElementById('wechatLoginError').textContent = '';
   document.getElementById('wechatQrBox').classList.remove('hidden');
   document.getElementById('wechatQrImage').removeAttribute('src');
   document.getElementById('wechatStatus').textContent = '正在生成新的登录二维码...';
@@ -538,12 +540,12 @@ async function searchWechatBizUi() {
         <div class="min-w-0">
           <p class="font-medium text-gray-800">${escapeHtml(item.nickname || item.fakeId)}</p>
           <p class="text-xs text-gray-400 mono truncate">fakeId: ${escapeHtml(item.fakeId)}</p>
-          <p class="text-xs text-gray-500 truncate">${escapeHtml(item.signature || item.alias || '??')}</p>
+          <p class="text-xs text-gray-500 truncate">${escapeHtml(item.signature || item.alias || '')}</p>
         </div>
         <button onclick="subscribeWechat(${index})"
           class="shrink-0 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition">订阅</button>
       </div>
-    `).join('??');
+    `).join('');
   } catch (e) {
     box.innerHTML = `<p class="text-red-500">搜索失败：${escapeHtml(e.message)}</p>`;
   }
@@ -579,12 +581,12 @@ async function loadWechatSubscriptions() {
         <div class="min-w-0">
           <p class="font-medium text-gray-800">${escapeHtml(item.nickname)}</p>
           <p class="text-xs text-gray-400 mono truncate">fakeId: ${escapeHtml(item.fakeId)}</p>
-          <p class="text-xs text-gray-500 truncate">${escapeHtml(item.signature || item.alias || '??')}</p>
+          <p class="text-xs text-gray-500 truncate">${escapeHtml(item.signature || item.alias || '')}</p>
         </div>
         <button onclick="deleteWechatSubscription('${escapeHtml(item.fakeId)}')"
           class="shrink-0 px-3 py-1.5 bg-red-100 text-red-600 rounded-lg text-xs hover:bg-red-200 transition">删除</button>
       </div>
-    `).join('??');
+    `).join('');
   } catch (e) {
     box.innerHTML = `<p class="text-red-500">订阅加载失败：${escapeHtml(e.message)}</p>`;
   }
@@ -612,10 +614,10 @@ async function syncWechatSubscriptions(urlsOnly) {
       <div class="border rounded-lg p-2 bg-gray-50">
         <p class="font-medium text-gray-800">${escapeHtml(item.title || '(无标题)')}</p>
         <p class="mono text-gray-500 truncate">${escapeHtml(item.url)}</p>
-        ${item.docId ? `<p class="text-green-600">已入库：${escapeHtml(item.docId)}</p>` : '??'}
-        ${item.error ? `<p class="text-red-500">处理失败：${escapeHtml(item.error)}</p>` : '??'}
+        ${item.docId ? `<p class="text-green-600">已入库：${escapeHtml(item.docId)}</p>` : ''}
+        ${item.error ? `<p class="text-red-500">处理失败：${escapeHtml(item.error)}</p>` : ''}
       </div>
-    `).join('??');
+    `).join('');
   } catch (e) {
     list.innerHTML = `<p class="text-red-500">同步失败：${escapeHtml(e.message)}</p>`;
   }
@@ -654,7 +656,7 @@ function renderPrompts(prompts) {
         rows="12">${escapeHtml(p.systemPrompt)}</textarea>
       <p id="prompt-msg-${p.id}" class="text-xs mt-1 h-4 text-gray-400"></p>
     </div>
-  `).join('??');
+  `).join('');
 }
 
 async function savePromptItem(id) {
@@ -665,7 +667,7 @@ async function savePromptItem(id) {
     await apiFetch(`/api/prompts/${id}`, { method: 'PUT', body: { systemPrompt: ta.value } });
     msg.textContent = ' 已保存';
     msg.className = 'text-xs mt-1 h-4 text-green-600';
-    setTimeout(() => { msg.textContent = '??'; msg.className = 'text-xs mt-1 h-4 text-gray-400'; }, 2500);
+    setTimeout(() => { msg.textContent = ''; msg.className = 'text-xs mt-1 h-4 text-gray-400'; }, 2500);
   } catch(e) {
     msg.textContent = '保存失败: ' + e.message;
     msg.className = 'text-xs mt-1 h-4 text-red-500';
