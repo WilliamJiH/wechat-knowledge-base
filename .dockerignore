@@ -3,6 +3,7 @@ dist
 .git
 .github
 .env
+.env.*
 knowledge_base
 *.log
 npm-debug.log*

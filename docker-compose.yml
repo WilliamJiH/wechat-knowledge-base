@@ -3,6 +3,7 @@ services:
     image: ${IMAGE:-williamjih/wechat-knowledge-base:latest}
     build:
       context: .
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     env_file:
