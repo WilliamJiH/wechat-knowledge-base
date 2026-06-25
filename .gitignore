@@ -16,6 +16,7 @@ knowledge_base/wechat_qrcode.png
 knowledge_base/wechat_subscriptions.json
 knowledge_base/web_auth.json
 knowledge_base/llm_usage.json
+knowledge_base/app_settings.json
 knowledge_base/web.*.log
 *.log
 .DS_Store

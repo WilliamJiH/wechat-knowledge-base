@@ -51,6 +51,7 @@
     <button onclick="showTab('wechat')" id="tab-wechat" class="tab-btn px-4 py-2.5 text-sm text-gray-500 tab-active">微信订阅</button>
     <button onclick="showTab('history')" id="tab-history" class="tab-btn px-4 py-2.5 text-sm text-gray-500">执行历史</button>
     <button onclick="showTab('usage')" id="tab-usage" class="tab-btn px-4 py-2.5 text-sm text-gray-500">用量</button>
+    <button onclick="showTab('settings')" id="tab-settings" class="tab-btn px-4 py-2.5 text-sm text-gray-500">设置</button>
     <button onclick="showTab('prompts')" id="tab-prompts" class="tab-btn px-4 py-2.5 text-sm text-gray-500">提示词</button>
   </nav>
 </header>
@@ -89,12 +90,22 @@
 
   <!-- ===== 执行历史 ===== -->
   <section id="pane-history" class="hidden">
-    <div class="bg-white rounded-xl shadow-sm border p-6">
+    <div class="bg-white rounded-xl shadow-sm border p-6 mb-4">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-base font-semibold"> 执行历史</h2>
         <button onclick="loadHistory()" class="text-xs text-blue-500 hover:underline">刷新</button>
       </div>
       <div id="historyList" class="space-y-1.5 text-sm text-gray-400 max-h-[60vh] overflow-y-auto">加载中...</div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-semibold">报告文件</h2>
+        <div class="flex items-center gap-3">
+          <button onclick="downloadAllReports()" class="text-xs text-blue-500 hover:underline">批量下载</button>
+          <button onclick="loadReports()" class="text-xs text-blue-500 hover:underline">刷新</button>
+        </div>
+      </div>
+      <div id="reportFileList" class="space-y-1.5 text-sm text-gray-400 max-h-[40vh] overflow-y-auto">加载中...</div>
     </div>
   </section>
 
@@ -198,6 +209,88 @@
     </div>
   </section>
 
+  <section id="pane-settings" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+    <div class="bg-white rounded-xl shadow-sm border p-6">
+      <div class="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h2 class="text-base font-semibold">API 配置</h2>
+          <p id="apiSettingsStatus" class="text-sm text-gray-400 mt-1">加载中...</p>
+        </div>
+        <button onclick="loadSettings()" class="text-xs text-blue-500 hover:underline">刷新</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">DEEPSEEK_API_KEY</label>
+          <input id="settingsDeepseekKey" type="password"
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            placeholder="留空则不修改；填写后覆盖现有配置" />
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-[1fr_160px] gap-3">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">EMBEDDING_API_KEY</label>
+            <input id="settingsEmbeddingKey" type="password"
+              class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+              placeholder="留空则不修改；填写后覆盖现有配置" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Embedding 服务</label>
+            <select id="settingsEmbeddingProvider"
+              class="w-full border rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-400 focus:outline-none">
+              <option value="openai">OPENAI</option>
+              <option value="siliconflow">siliconflow</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">EMBEDDING_BASE_URL</label>
+          <input id="settingsEmbeddingBaseUrl"
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            placeholder="如果不是自定义则留空" />
+          <p id="embeddingBaseUrlEffective" class="text-xs text-gray-400 mt-1"></p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button onclick="saveApiSettingsUi()"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition">保存 API 配置</button>
+          <span id="apiSettingsMessage" class="text-sm text-gray-400"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border p-6">
+      <div class="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h2 class="text-base font-semibold">飞书配置</h2>
+          <p id="feishuSettingsStatus" class="text-sm text-gray-400 mt-1">加载中...</p>
+        </div>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">FEISHU_APP_ID</label>
+          <input id="settingsFeishuAppId"
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            placeholder="留空则不修改；填写后覆盖现有配置" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">FEISHU_APP_SECRET</label>
+          <input id="settingsFeishuAppSecret" type="password"
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            placeholder="留空则不修改；填写后覆盖现有配置" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">FEISHU_WIKI_SPACE_ID</label>
+          <input id="settingsFeishuWikiSpaceId"
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            placeholder="留空则不修改；填写后覆盖现有配置" />
+        </div>
+        <div class="flex items-center gap-3">
+          <button onclick="saveFeishuSettingsUi()"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition">保存飞书配置</button>
+          <span id="feishuSettingsMessage" class="text-sm text-gray-400"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ===== Agent Prompts ===== -->
   <section id="pane-prompts" class="hidden">
     <div class="bg-white rounded-xl shadow-sm border p-6">
@@ -212,7 +305,7 @@
 <script>
 // =================== 全局 ===================
 const API = '';
-const TABS = ['wechat','history','usage','prompts'];
+const TABS = ['wechat','history','usage','settings','prompts'];
 let authState = { authenticated: false, mustChangePassword: false };
 
 function showTab(tab) {
@@ -222,8 +315,9 @@ function showTab(tab) {
     btn.classList.toggle('tab-active', t === tab);
     btn.classList.toggle('text-gray-500', t !== tab);
   });
-  if (tab === 'history') loadHistory();
+  if (tab === 'history') { loadHistory(); loadReports(); }
   if (tab === 'usage')   loadUsage();
+  if (tab === 'settings') loadSettings();
   if (tab === 'wechat')  loadWechatPanel();
   if (tab === 'prompts') loadPrompts();
 }
@@ -593,6 +687,58 @@ async function loadHistory() {
 setInterval(loadHistory, 15000);
 
 // =================== 用量 ===================
+async function loadHistory() {
+  const el = document.getElementById('historyList');
+  try {
+    const { history } = await apiFetch('/api/history?limit=100');
+    if (!history.length) { el.innerHTML = '<p class="text-gray-400">暂无执行历史</p>'; return; }
+    const badge = {
+      running: '<span class="chip chip-blue">运行中</span>',
+      success: '<span class="chip chip-green">成功</span>',
+      failed:  '<span class="chip chip-red">失败</span>',
+    };
+    el.innerHTML = history.map(h => `
+      <div class="flex items-start gap-2.5 border-b border-gray-100 py-2 last:border-0">
+        ${badge[h.status] || ''}
+        <div class="flex-1 min-w-0">
+          ${h.title ? `<p class="font-medium text-gray-800 truncate">${escapeHtml(h.title)}</p>` : ''}
+          <p class="mono text-xs text-gray-600 truncate" title="${escapeHtml(h.url)}">${escapeHtml(h.url)}</p>
+          ${h.source ? `<p class="text-xs text-gray-400 mt-0.5">来源：${escapeHtml(h.source)}</p>` : ''}
+          ${h.error  ? `<p class="text-xs text-red-400 mt-0.5">${escapeHtml(h.error)}</p>` : ''}
+          ${h.docId  ? `<p class="mono text-xs text-gray-400 mt-0.5">${h.docId}</p>` : ''}
+          ${h.reportPath ? `<a class="text-xs text-blue-500 hover:underline" href="/api/reports/download/${encodeURIComponent(h.reportPath.split(/[\\/]/).pop())}">下载报告</a>` : ''}
+        </div>
+        <span class="text-xs text-gray-400 shrink-0 whitespace-nowrap">
+          ${new Date(h.startedAt).toLocaleString('zh-CN')}
+        </span>
+      </div>
+    `).join('');
+  } catch (e) { el.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`; }
+}
+
+async function loadReports() {
+  const el = document.getElementById('reportFileList');
+  try {
+    const { reports } = await apiFetch('/api/reports');
+    if (!reports.length) { el.innerHTML = '<p class="text-gray-400">暂无报告文件</p>'; return; }
+    el.innerHTML = reports.map(report => `
+      <div class="flex items-center justify-between gap-3 border-b border-gray-100 py-2 last:border-0">
+        <div class="min-w-0">
+          <p class="font-medium text-gray-800 truncate" title="${escapeHtml(report.name)}">${escapeHtml(report.name)}</p>
+          <p class="text-xs text-gray-400">${new Date(report.updatedAt).toLocaleString('zh-CN')} · ${Math.ceil(report.size / 1024)} KB</p>
+        </div>
+        <a class="text-xs text-blue-500 hover:underline shrink-0" href="/api/reports/download/${encodeURIComponent(report.name)}">下载</a>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`;
+  }
+}
+
+function downloadAllReports() {
+  window.location.href = '/api/reports/download-all';
+}
+
 function usageCard(label, value) {
   return `
     <div class="border rounded-lg p-4 bg-gray-50">
@@ -797,6 +943,89 @@ async function syncWechatSubscriptions(urlsOnly) {
     `).join('');
   } catch (e) {
     list.innerHTML = `<p class="text-red-500">同步失败：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+// =================== 设置 ===================
+function settingsStatusText(label, configured) {
+  return `${label}${configured ? '已配置' : '未配置'}`;
+}
+
+function clearSettingsInputs() {
+  [
+    'settingsDeepseekKey',
+    'settingsEmbeddingKey',
+    'settingsFeishuAppId',
+    'settingsFeishuAppSecret',
+    'settingsFeishuWikiSpaceId',
+  ].forEach(id => { document.getElementById(id).value = ''; });
+}
+
+async function loadSettings() {
+  const apiStatus = document.getElementById('apiSettingsStatus');
+  const feishuStatus = document.getElementById('feishuSettingsStatus');
+  try {
+    const data = await apiFetch('/api/settings');
+    const api = data.api || {};
+    const feishu = data.feishu || {};
+    document.getElementById('settingsEmbeddingProvider').value = api.embeddingProvider || 'siliconflow';
+    document.getElementById('settingsEmbeddingBaseUrl').value = api.embeddingBaseUrl || '';
+    document.getElementById('embeddingBaseUrlEffective').textContent =
+      `当前生效地址：${api.embeddingBaseUrlEffective || '未设置'}`;
+    apiStatus.textContent = [
+      settingsStatusText('DeepSeek ', api.deepseekApiKeyConfigured),
+      settingsStatusText('Embedding ', api.embeddingApiKeyConfigured),
+    ].join(' · ');
+    feishuStatus.textContent = [
+      settingsStatusText('App ID ', feishu.appIdConfigured),
+      settingsStatusText('App Secret ', feishu.appSecretConfigured),
+      settingsStatusText('Wiki Space ', feishu.wikiSpaceIdConfigured),
+    ].join(' · ');
+    clearSettingsInputs();
+  } catch (e) {
+    apiStatus.textContent = `加载失败：${e.message}`;
+    apiStatus.className = 'text-sm text-red-500 mt-1';
+  }
+}
+
+async function saveApiSettingsUi() {
+  const msg = document.getElementById('apiSettingsMessage');
+  msg.textContent = '保存中...';
+  msg.className = 'text-sm text-gray-400';
+  try {
+    const body = {
+      deepseekApiKey: document.getElementById('settingsDeepseekKey').value,
+      embeddingApiKey: document.getElementById('settingsEmbeddingKey').value,
+      embeddingProvider: document.getElementById('settingsEmbeddingProvider').value,
+      embeddingBaseUrl: document.getElementById('settingsEmbeddingBaseUrl').value,
+    };
+    await apiFetch('/api/settings/api', { method: 'PUT', body });
+    await loadSettings();
+    msg.textContent = '已保存';
+    msg.className = 'text-sm text-green-600';
+  } catch (e) {
+    msg.textContent = `保存失败：${e.message}`;
+    msg.className = 'text-sm text-red-500';
+  }
+}
+
+async function saveFeishuSettingsUi() {
+  const msg = document.getElementById('feishuSettingsMessage');
+  msg.textContent = '保存中...';
+  msg.className = 'text-sm text-gray-400';
+  try {
+    const body = {
+      appId: document.getElementById('settingsFeishuAppId').value,
+      appSecret: document.getElementById('settingsFeishuAppSecret').value,
+      wikiSpaceId: document.getElementById('settingsFeishuWikiSpaceId').value,
+    };
+    await apiFetch('/api/settings/feishu', { method: 'PUT', body });
+    await loadSettings();
+    msg.textContent = '已保存';
+    msg.className = 'text-sm text-green-600';
+  } catch (e) {
+    msg.textContent = `保存失败：${e.message}`;
+    msg.className = 'text-sm text-red-500';
   }
 }
 

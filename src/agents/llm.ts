@@ -15,6 +15,10 @@ export function getLLMClient(): OpenAI {
   return client;
 }
 
+export function resetLLMClient(): void {
+  client = null;
+}
+
 /** 发送聊天请求 */
 export async function chatCompletion(
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[],

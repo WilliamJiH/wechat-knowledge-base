@@ -3,7 +3,7 @@ import * as path from 'path';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
-import { processArticle } from '../scheduler';
+import { processArticleWithReport } from '../scheduler';
 import { initDB, closeDB } from '../storage/db';
 
 /** 爬取进度事件发射器（用于 SSE） */
@@ -41,6 +41,9 @@ export interface ExecutionRecord {
   startedAt: string;
   finishedAt?: string;
   docId?: string;
+  reportPath?: string;
+  source?: string;
+  title?: string;
 }
 
 /** 任务配置文件路径 */
@@ -80,7 +83,7 @@ function saveHistory(history: ExecutionRecord[]): void {
   fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf-8');
 }
 
-function addHistoryRecord(record: ExecutionRecord): void {
+export function addHistoryRecord(record: ExecutionRecord): void {
   const history = loadHistory();
   history.unshift(record);
   // 只保留最近 200 条记录
@@ -88,7 +91,7 @@ function addHistoryRecord(record: ExecutionRecord): void {
   saveHistory(history);
 }
 
-function updateHistoryRecord(id: string, updates: Partial<ExecutionRecord>): void {
+export function updateHistoryRecord(id: string, updates: Partial<ExecutionRecord>): void {
   const history = loadHistory();
   const idx = history.findIndex((h) => h.id === id);
   if (idx >= 0) {
@@ -116,13 +119,14 @@ async function executeTask(task: ScheduledTask): Promise<void> {
     addHistoryRecord(record);
 
     try {
-      const docId = await processArticle(url);
+      const result = await processArticleWithReport(url);
       updateHistoryRecord(recordId, {
         status: 'success',
         finishedAt: new Date().toISOString(),
-        docId,
+        docId: result.docId,
+        reportPath: result.reportPath,
       });
-      console.log(`[TaskManager] 成功: ${url} → ${docId}`);
+      console.log(`[TaskManager] 成功: ${url} → ${result.docId}`);
     } catch (err: any) {
       updateHistoryRecord(recordId, {
         status: 'failed',
@@ -207,6 +211,7 @@ async function executeTaskWithProgress(task: ScheduledTask, sessionId: string): 
         status: 'success',
         finishedAt: new Date().toISOString(),
         docId: crawlResult.doc_id,
+        reportPath: pipelineResult.reportPath,
       });
 
       emit(url, 'done', `完成！`, {

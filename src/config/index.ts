@@ -1,5 +1,7 @@
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import * as fs from 'fs';
+import { applyRuntimeSettings } from './settings';
 
 dotenv.config();
 
@@ -55,7 +57,7 @@ export const config = {
 };
 
 // 确保目录存在
-import * as fs from 'fs';
+applyRuntimeSettings(config);
 
 export function ensureDirectories(): void {
   const dirs = [
