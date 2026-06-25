@@ -96,12 +96,17 @@ npx ts-node src/index.ts list
 ## 🛠 开发指南
 
 ```bash
-# 开发模式（直接运行 TypeScript）
-npm run dev          # 等同于 ts-node src/index.ts
-npm run web          # 启动 Web 服务进行开发调试
+# 开发模式（启动 Web 服务 + API + 定时任务）
+npm run dev          # 访问 http://localhost:3000
+npm run web          # 同上，或自定义端口：npx ts-node src/index.ts web -p 8080
 
 # 编译
 npm run build        # tsc 编译到 dist/
+
+# CLI 命令（单独使用）
+npm run crawl -- "https://mp.weixin.qq.com/s/xxxxx"    # 爬取文章
+npx ts-node src/index.ts pipeline "URL"                # 完整管线
+npx ts-node src/index.ts search "关键词"               # 语义检索
 
 # 环境变量
 # .env 中可配置 WEB_PORT=3000 修改默认端口

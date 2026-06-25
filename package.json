@@ -8,11 +8,11 @@
   },
   "scripts": {
     "build": "tsc",
-    "start": "ts-node src/index.ts",
+    "start": "ts-node src/index.ts web",
+    "dev": "ts-node src/index.ts web",
     "crawl": "ts-node src/index.ts crawl",
     "analyze": "ts-node src/index.ts analyze",
     "evolve": "ts-node src/index.ts evolve",
-    "dev": "ts-node src/index.ts",
     "web": "ts-node src/index.ts web"
   },
   "dependencies": {
