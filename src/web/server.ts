@@ -11,6 +11,8 @@ import {
   runTaskNow,
   crawlNow,
   getHistory,
+  addHistoryRecord,
+  updateHistoryRecord,
   shutdownTaskManager,
   crawlEvents,
   CrawlProgressEvent,
@@ -26,13 +28,16 @@ import {
   searchWechatBiz,
   upsertWechatSubscription,
 } from '../wechat-platform';
-import { processArticle } from '../scheduler';
+import { processArticleWithReport } from '../scheduler';
 import { config } from '../config';
 import { initDB } from '../storage';
 import { cleanupRuntimeArtifacts } from '../runtime/cleanup';
 import * as fs from 'fs';
 import { authStatus, changePassword, login, logout, requireAuth } from './auth';
 import { getLLMUsage } from '../usage/llm';
+import { applyRuntimeSettings, getSettingsStatus, saveApiSettings, saveFeishuSettings } from '../config/settings';
+import { resetLLMClient } from '../agents/llm';
+import { v4 as uuidv4 } from 'uuid';
 
 const app = express();
 const PORT = process.env.WEB_PORT ? parseInt(process.env.WEB_PORT) : 3000;
@@ -43,6 +48,104 @@ let wechatLoginState: {
   startedAt: string | null;
   finishedAt: string | null;
 } = { running: false, error: null, startedAt: null, finishedAt: null };
+
+function getReportsDir(): string {
+  return path.join(config.knowledgeBasePath, 'reports');
+}
+
+function listReportFiles() {
+  const reportsDir = getReportsDir();
+  if (!fs.existsSync(reportsDir)) return [];
+  return fs.readdirSync(reportsDir)
+    .filter((name) => name.toLowerCase().endsWith('.md'))
+    .map((name) => {
+      const filePath = path.join(reportsDir, name);
+      const stat = fs.statSync(filePath);
+      return { name, size: stat.size, updatedAt: stat.mtime.toISOString() };
+    })
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+function crc32(buffer: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let i = 0; i < 8; i++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function dosDateTime(date: Date): { time: number; date: number } {
+  const year = Math.max(date.getFullYear(), 1980);
+  return {
+    time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),
+    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
+  };
+}
+
+function createZip(files: { name: string; data: Buffer; mtime: Date }[]): Buffer {
+  const localParts: Buffer[] = [];
+  const centralParts: Buffer[] = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const name = Buffer.from(file.name, 'utf-8');
+    const checksum = crc32(file.data);
+    const stamp = dosDateTime(file.mtime);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt16LE(stamp.time, 10);
+    local.writeUInt16LE(stamp.date, 12);
+    local.writeUInt32LE(checksum, 14);
+    local.writeUInt32LE(file.data.length, 18);
+    local.writeUInt32LE(file.data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, name, file.data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt16LE(stamp.time, 12);
+    central.writeUInt16LE(stamp.date, 14);
+    central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(file.data.length, 20);
+    central.writeUInt32LE(file.data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+
+    offset += local.length + name.length + file.data.length;
+  }
+
+  const centralOffset = offset;
+  const centralDirectory = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(files.length, 8);
+  end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(centralDirectory.length, 12);
+  end.writeUInt32LE(centralOffset, 16);
+  end.writeUInt16LE(0, 20);
+
+  return Buffer.concat([...localParts, centralDirectory, end]);
+}
 
 function normalizeWechatLoginError(err: any): string {
   const message = err?.message || String(err);
@@ -66,6 +169,23 @@ app.post('/api/auth/logout', logout);
 app.post('/api/auth/change-password', changePassword);
 
 app.use(requireAuth);
+
+app.get('/api/settings', (_req, res) => {
+  res.json(getSettingsStatus(config));
+});
+
+app.put('/api/settings/api', (req, res) => {
+  saveApiSettings(req.body || {});
+  applyRuntimeSettings(config);
+  resetLLMClient();
+  res.json({ success: true, settings: getSettingsStatus(config) });
+});
+
+app.put('/api/settings/feishu', (req, res) => {
+  saveFeishuSettings(req.body || {});
+  applyRuntimeSettings(config);
+  res.json({ success: true, settings: getSettingsStatus(config) });
+});
 
 /** 获取所有定时任务 */
 app.get('/api/tasks', (_req, res) => {
@@ -275,10 +395,33 @@ app.post('/api/wechat/sync', async (req, res) => {
       for (const article of articles) {
         const item: any = { subscription: subscription.nickname, title: article.title, url: article.link };
         if (!urlsOnly) {
+          const recordId = uuidv4();
+          addHistoryRecord({
+            id: recordId,
+            taskId: `wechat-sync-${subscription.fakeId}`,
+            url: article.link,
+            status: 'running',
+            startedAt: new Date().toISOString(),
+            source: subscription.nickname,
+            title: article.title,
+          });
           try {
-            item.docId = await processArticle(article.link);
+            const result = await processArticleWithReport(article.link);
+            item.docId = result.docId;
+            item.reportPath = result.reportPath;
+            updateHistoryRecord(recordId, {
+              status: 'success',
+              finishedAt: new Date().toISOString(),
+              docId: result.docId,
+              reportPath: result.reportPath,
+            });
           } catch (err: any) {
             item.error = err?.message || String(err);
+            updateHistoryRecord(recordId, {
+              status: 'failed',
+              error: item.error,
+              finishedAt: new Date().toISOString(),
+            });
           }
         }
         synced.push(item);
@@ -318,6 +461,42 @@ app.get('/api/history', (req, res) => {
   const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
   const history = getHistory(limit);
   res.json({ history });
+});
+
+app.get('/api/reports', (_req, res) => {
+  res.json({ reports: listReportFiles() });
+});
+
+app.get('/api/reports/download-all', (_req, res) => {
+  const reportsDir = getReportsDir();
+  const reports = listReportFiles();
+  if (!reports.length) {
+    res.status(404).json({ error: '暂无报告' });
+    return;
+  }
+  const files = reports.map((report) => {
+    const filePath = path.join(reportsDir, report.name);
+    return {
+      name: report.name,
+      data: fs.readFileSync(filePath),
+      mtime: fs.statSync(filePath).mtime,
+    };
+  });
+  const zip = createZip(files);
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', 'attachment; filename="analysis-reports.zip"');
+  res.send(zip);
+});
+
+app.get('/api/reports/download/:name', (req, res) => {
+  const reportsDir = getReportsDir();
+  const name = path.basename(req.params.name);
+  const filePath = path.join(reportsDir, name);
+  if (!fs.existsSync(filePath) || path.dirname(filePath) !== reportsDir) {
+    res.status(404).json({ error: '报告不存在' });
+    return;
+  }
+  res.download(filePath, name);
 });
 
 /** 健康检查 */

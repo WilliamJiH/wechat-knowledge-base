@@ -10,7 +10,12 @@ import { getAllArticles, getArticle } from '../storage';
 import * as fs from 'fs';
 
 /** 完整管线：处理单篇文章 */
-export async function processArticle(url: string): Promise<string> {
+export interface ProcessArticleResult {
+  docId: string;
+  reportPath: string;
+}
+
+export async function processArticleWithReport(url: string): Promise<ProcessArticleResult> {
   const { crawlWechatArticle } = await import('../crawler');
 
   // 1. 爬取
@@ -39,7 +44,12 @@ export async function processArticle(url: string): Promise<string> {
   // 6. 观点演化
   await generateEvolution(crawlResult.doc_id, pipelineResult.analysis.claims);
 
-  return crawlResult.doc_id;
+  return { docId: crawlResult.doc_id, reportPath: pipelineResult.reportPath };
+}
+
+export async function processArticle(url: string): Promise<string> {
+  const result = await processArticleWithReport(url);
+  return result.docId;
 }
 
 /** 批量处理管线 */

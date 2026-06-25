@@ -1,6 +1,6 @@
 services:
   wechat-knowledge-base:
-    image: ${IMAGE:-wechat-knowledge-base:local}
+    image: ${IMAGE:-williamjih/wechat-knowledge-base:latest}
     build:
       context: .
     ports:
