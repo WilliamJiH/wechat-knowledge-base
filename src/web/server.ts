@@ -31,6 +31,8 @@ import { config } from '../config';
 import { initDB } from '../storage';
 import { cleanupRuntimeArtifacts } from '../runtime/cleanup';
 import * as fs from 'fs';
+import { authStatus, changePassword, login, logout, requireAuth } from './auth';
+import { getLLMUsage } from '../usage/llm';
 
 const app = express();
 const PORT = process.env.WEB_PORT ? parseInt(process.env.WEB_PORT) : 3000;
@@ -57,6 +59,13 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ===== API 路由 =====
+
+app.get('/api/auth/status', authStatus);
+app.post('/api/auth/login', login);
+app.post('/api/auth/logout', logout);
+app.post('/api/auth/change-password', changePassword);
+
+app.use(requireAuth);
 
 /** 获取所有定时任务 */
 app.get('/api/tasks', (_req, res) => {
@@ -318,6 +327,11 @@ app.get('/api/health', (_req, res) => {
     uptime: process.uptime(),
     activeTasks: getTasks().filter((t) => t.enabled).length,
   });
+});
+
+app.get('/api/usage/llm', (req, res) => {
+  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
+  res.json(getLLMUsage(limit));
 });
 
 // SPA fallback（Express 5 语法）
