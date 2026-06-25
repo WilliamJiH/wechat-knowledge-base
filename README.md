@@ -30,31 +30,48 @@ cp .env.example .env
 # 编辑 .env，填入 DeepSeek API Key（必填）和飞书配置（可选）
 ```
 
-### 3. 爬取一篇文章
+### 3. 启动 Web 管理界面（推荐）
+
+```bash
+# 启动 Web 服务（默认端口 3000）
+npm run web
+
+# 自定义端口
+npx ts-node src/index.ts web -p 8080
+```
+
+访问 `http://localhost:3000` 即可使用 Web 管理界面：
+- **快速爬取**：输入链接立即爬取，走完整管线
+- **定时任务**：设置采集间隔（1h ~ 7天）+ 链接列表，自动周期执行
+- **执行历史**：查看每次爬取的成功/失败记录
+
+> 定时任务持久化运行，关闭网页不影响后台采集。
+
+### 4. 爬取一篇文章（CLI）
 
 ```bash
 npx ts-node src/index.ts crawl "https://mp.weixin.qq.com/s/xxxxx"
 ```
 
-### 4. 运行完整管线（爬取 + 分析 + 演化）
+### 5. 运行完整管线（爬取 + 分析 + 演化）
 
 ```bash
 npx ts-node src/index.ts pipeline "https://mp.weixin.qq.com/s/xxxxx"
 ```
 
-### 5. 语义检索知识库
+### 6. 语义检索知识库
 
 ```bash
 npx ts-node src/index.ts search "AI 大模型发展趋势"
 ```
 
-### 6. 启动定时采集任务
+### 7. 启动定时采集任务（CLI）
 
 ```bash
 npx ts-node src/index.ts start --rss "https://rsshub.app/wechat/mp/xxx"
 ```
 
-### 7. 查看所有已采集文章
+### 8. 查看所有已采集文章
 
 ```bash
 npx ts-node src/index.ts list
@@ -70,8 +87,25 @@ npx ts-node src/index.ts list
 | `index <doc_id>` | 为文章生成向量化索引 |
 | `search <query>` | 语义检索知识库（支持 `-k` 参数） |
 | `pipeline <urls...>` | 一键完整管线：爬取→转换→索引→分析→演化 |
-| `start [--rss <feeds>]` | 启动定时采集调度器 |
+| `web [-p <port>]` | 启动 Web 管理界面（默认端口 3000） |
+| `start [--rss <feeds>]` | 启动 CLI 定时采集调度器 |
 | `list` | 列出所有已采集文章及状态 |
+
+---
+
+## 🛠 开发指南
+
+```bash
+# 开发模式（直接运行 TypeScript）
+npm run dev          # 等同于 ts-node src/index.ts
+npm run web          # 启动 Web 服务进行开发调试
+
+# 编译
+npm run build        # tsc 编译到 dist/
+
+# 环境变量
+# .env 中可配置 WEB_PORT=3000 修改默认端口
+```
 
 ---
 
