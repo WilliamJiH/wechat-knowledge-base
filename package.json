@@ -13,7 +13,11 @@
     "crawl": "ts-node src/index.ts crawl",
     "analyze": "ts-node src/index.ts analyze",
     "evolve": "ts-node src/index.ts evolve",
-    "web": "ts-node src/index.ts web"
+    "web": "ts-node src/index.ts web",
+    "wx:login": "ts-node src/index.ts wx-login",
+    "wx:status": "ts-node src/index.ts wx-status",
+    "wx:search": "ts-node src/index.ts wx-search",
+    "wx:sync": "ts-node src/index.ts wx-sync"
   },
   "dependencies": {
     "axios": "^1.7.0",
@@ -24,6 +28,7 @@
     "express": "^5.2.1",
     "node-cron": "^3.0.3",
     "openai": "^4.50.0",
+    "playwright": "^1.61.1",
     "rss-parser": "^3.13.0",
     "sql.js": "^1.10.0",
     "turndown": "^7.2.0",

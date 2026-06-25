@@ -93,6 +93,49 @@ npx ts-node src/index.ts list
 
 ---
 
+## 微信公众平台订阅采集
+
+本项目已融合 `rachelos/we-mp-rss` 中的微信公众平台二维码登录、公众号搜索和订阅文章列表能力；RSS、PDF、主题、Webhook 等其它功能未引入。
+
+二维码登录依赖 Playwright。首次使用前安装浏览器自动化依赖：
+
+```bash
+npm install playwright
+npx playwright install chromium
+```
+
+常用命令：
+
+```bash
+# 生成二维码并等待微信扫码登录，token/cookie 会保存到 knowledge_base/wechat_platform_session.json
+npm run wx:login
+
+# 查看登录状态
+npm run wx:status
+
+# 搜索公众号，记录输出中的 fakeId
+npm run wx:search -- "公众号名称"
+
+# 订阅搜索结果第一条
+npx ts-node src/index.ts wx-subscribe --search "公众号名称"
+
+# 或直接用 fakeId 订阅
+npx ts-node src/index.ts wx-subscribe <fakeId> --name "公众号名称"
+
+# 查看订阅列表
+npx ts-node src/index.ts wx-subscriptions
+
+# 只拉取并打印订阅文章 URL
+npm run wx:sync -- --urls-only
+
+# 同步订阅文章并进入现有完整管线
+npm run wx:sync -- -n 5
+```
+
+同步流程会调用当前项目已有的 `processArticle`，文章采集、Markdown 转换、图片本地化、索引、Agent 分析和演化链仍按 `AGENTS.md` 的管线执行。
+
+---
+
 ## 🛠 开发指南
 
 ```bash
