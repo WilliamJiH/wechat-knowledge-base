@@ -1,0 +1,39 @@
+{
+  "name": "wechat-knowledge-base",
+  "version": "1.0.0",
+  "description": "微信公众号知识演化系统",
+  "main": "dist/index.js",
+  "bin": {
+    "wkb": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "crawl": "ts-node src/index.ts crawl",
+    "analyze": "ts-node src/index.ts analyze",
+    "evolve": "ts-node src/index.ts evolve",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "sql.js": "^1.10.0",
+    "cheerio": "^1.0.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.0",
+    "node-cron": "^3.0.3",
+    "openai": "^4.50.0",
+    "rss-parser": "^3.13.0",
+    "turndown": "^7.2.0",
+    "uuid": "^10.0.0",
+    "vectra": "^0.15.0"
+  },
+  "devDependencies": {
+
+    "@types/node": "^20.14.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/turndown": "^5.0.5",
+    "@types/uuid": "^10.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.5.0"
+  }
+}

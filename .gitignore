@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+knowledge_base/db/
+knowledge_base/embeddings/
+knowledge_base/raw/
+knowledge_base/markdown/
+knowledge_base/images/
+knowledge_base/evolution/
+*.log
+.DS_Store
+Thumbs.db

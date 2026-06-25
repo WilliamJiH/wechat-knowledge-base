@@ -1,0 +1,101 @@
+import axios from 'axios';
+import { config } from '../config';
+import { updateFeishuDocId } from '../storage';
+
+/** 飞书 API 基地址 */
+const FEISHU_API_BASE = 'https://open.feishu.cn/open-apis';
+
+/** 获取 tenant_access_token */
+async function getTenantAccessToken(): Promise<string> {
+  const { appId, appSecret } = config.feishu;
+  if (!appId || !appSecret) {
+    throw new Error('飞书配置不完整，请设置 FEISHU_APP_ID 和 FEISHU_APP_SECRET');
+  }
+
+  const response = await axios.post(`${FEISHU_API_BASE}/auth/v3/tenant_access_token/internal`, {
+    app_id: appId,
+    app_secret: appSecret,
+  });
+
+  return response.data.tenant_access_token;
+}
+
+/** 创建飞书知识库文档 */
+export async function createFeishuDoc(docId: string, title: string, markdown: string): Promise<string> {
+  const token = await getTenantAccessToken();
+  const spaceId = config.feishu.wikiSpaceId;
+
+  if (!spaceId) {
+    throw new Error('飞书知识库空间ID未配置，请设置 FEISHU_WIKI_SPACE_ID');
+  }
+
+  // 创建知识库节点
+  const response = await axios.post(
+    `${FEISHU_API_BASE}/wiki/v2/spaces/${spaceId}/nodes`,
+    {
+      obj_type: 'docx',
+      title: title,
+      node_type: 'origin',
+    },
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+
+  const feishuDocId = response.data.data?.node?.obj_token;
+  if (!feishuDocId) {
+    throw new Error('创建飞书文档失败');
+  }
+
+  // 写入文档内容（简化版：使用纯文本块）
+  await writeDocContent(token, feishuDocId, markdown);
+
+  // 记录到数据库
+  updateFeishuDocId(docId, feishuDocId);
+
+  console.log(`[Feishu] 文档已同步: ${title} (doc_id: ${feishuDocId})`);
+  return feishuDocId;
+}
+
+/** 写入文档内容 */
+async function writeDocContent(token: string, docId: string, markdown: string): Promise<void> {
+  // 飞书文档 API 要求使用 block 格式
+  // 这里简化处理：将 Markdown 按段落切分为文本块
+  const paragraphs = markdown.split('\n\n').filter((p) => p.trim());
+
+  // 获取文档根 block
+  const metaResp = await axios.get(`${FEISHU_API_BASE}/docx/v1/documents/${docId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const rootBlockId = metaResp.data?.data?.document?.document_id;
+
+  if (!rootBlockId) return;
+
+  // 批量创建文本块
+  const blocks = paragraphs.map((para) => ({
+    block_type: 2, // text block
+    text: {
+      elements: [{ text_run: { content: para.slice(0, 500) } }],
+      style: {},
+    },
+  }));
+
+  // 飞书 API 限制每次最多 50 个 block
+  for (let i = 0; i < blocks.length; i += 50) {
+    const batch = blocks.slice(i, i + 50);
+    try {
+      await axios.post(
+        `${FEISHU_API_BASE}/docx/v1/documents/${docId}/blocks/${rootBlockId}/children`,
+        { children: batch },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (err) {
+      console.error(`[Feishu] 写入文档内容失败 (batch ${i}):`, err);
+    }
+  }
+}
+
+/** 检查飞书配置是否可用 */
+export function isFeishuConfigured(): boolean {
+  return !!(config.feishu.appId && config.feishu.appSecret && config.feishu.wikiSpaceId);
+}
