@@ -4,82 +4,106 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>微信知识库 · 管理界面</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans SC"', 'sans-serif'],
+            mono: ['"Courier New"', '"Noto Sans SC"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    .progress-step { transition: all 0.3s ease; }
-    .step-active  { @apply text-blue-600 font-semibold; }
-    .step-done    { @apply text-green-600; }
-    .step-error   { @apply text-red-600; }
-    .tab-active   { border-bottom: 2px solid #2563eb; color: #2563eb; }
-    textarea.prompt-editor { font-family: 'Courier New', monospace; font-size: 13px; }
-    .spinner { border: 3px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; }
+    body { font-family: "Noto Sans SC", sans-serif; }
+    .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
+    textarea.mono { font-family: "Courier New", "Noto Sans SC", monospace; font-size: 13px; }
+    .spinner {
+      border: 3px solid #e5e7eb;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      width: 16px; height: 16px;
+      animation: spin 0.7s linear infinite;
+      display: inline-block; vertical-align: middle;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .chip { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 9999px; }
+    .chip-gray   { background: #f3f4f6; color: #9ca3af; }
+    .chip-blue   { background: #dbeafe; color: #1d4ed8; }
+    .chip-green  { background: #dcfce7; color: #15803d; }
+    .chip-red    { background: #fee2e2; color: #dc2626; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen">
 
 <!-- 顶栏 -->
-<header class="bg-white border-b px-6 py-3 flex items-center justify-between shadow-sm">
+<header class="bg-white border-b px-6 py-3 flex items-center justify-between shadow-sm sticky top-0 z-10">
   <div class="flex items-center gap-3">
-    <span class="text-xl font-bold text-blue-600">📚 微信知识库</span>
-    <span id="healthBadge" class="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-500">连接中...</span>
+    <span class="text-lg font-bold text-blue-600">📚 微信知识库</span>
+    <span id="healthBadge" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">连接中...</span>
   </div>
-  <nav class="flex gap-1">
-    <button onclick="showTab('crawl')"   id="tab-crawl"   class="tab-btn px-4 py-2 text-sm rounded-t tab-active">🕷 快速爬取</button>
-    <button onclick="showTab('tasks')"   id="tab-tasks"   class="tab-btn px-4 py-2 text-sm rounded-t text-gray-500">⏰ 定时任务</button>
-    <button onclick="showTab('history')" id="tab-history" class="tab-btn px-4 py-2 text-sm rounded-t text-gray-500">📋 执行历史</button>
-    <button onclick="showTab('prompts')" id="tab-prompts" class="tab-btn px-4 py-2 text-sm rounded-t text-gray-500">🤖 Agent Prompts</button>
+  <nav class="flex">
+    <button onclick="showTab('crawl')"   id="tab-crawl"   class="tab-btn px-4 py-2.5 text-sm text-gray-500 tab-active">🕷 快速爬取</button>
+    <button onclick="showTab('tasks')"   id="tab-tasks"   class="tab-btn px-4 py-2.5 text-sm text-gray-500">⏰ 定时任务</button>
+    <button onclick="showTab('history')" id="tab-history" class="tab-btn px-4 py-2.5 text-sm text-gray-500">📋 执行历史</button>
+    <button onclick="showTab('prompts')" id="tab-prompts" class="tab-btn px-4 py-2.5 text-sm text-gray-500">🤖 Agent Prompts</button>
   </nav>
 </header>
 
-<main class="max-w-5xl mx-auto px-4 py-6 space-y-4">
+<main class="max-w-4xl mx-auto px-4 py-6 space-y-4">
 
   <!-- ===== 快速爬取 ===== -->
   <section id="pane-crawl">
     <div class="bg-white rounded-xl shadow-sm border p-6">
-      <h2 class="text-lg font-semibold mb-1">🕷 快速爬取</h2>
-      <p class="text-sm text-gray-500 mb-4">输入微信文章链接，立即走完整管线（爬取→解析→索引→分析→演化）</p>
-      <textarea id="crawlUrls" rows="4" placeholder="每行一个链接&#10;https://mp.weixin.qq.com/s/xxxxx"
-        class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y"></textarea>
+      <h2 class="text-base font-semibold mb-1">🕷 快速爬取</h2>
+      <p class="text-sm text-gray-400 mb-4">输入微信文章链接，立即走完整管线（爬取 → 解析 → 索引 → Agent 分析 → 演化）</p>
+      <textarea id="crawlUrls" rows="4"
+        placeholder="每行一个链接&#10;https://mp.weixin.qq.com/s/xxxxx"
+        class="mono w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y bg-gray-50"></textarea>
       <button onclick="startCrawl()" id="crawlBtn"
         class="mt-3 px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition">
         ▶ 开始爬取
       </button>
     </div>
 
-    <!-- 进度面板 -->
+    <!-- 进度面板（爬取时展开） -->
     <div id="progressPanel" class="hidden bg-white rounded-xl shadow-sm border p-6 mt-4">
-      <h3 class="font-semibold mb-3 text-gray-700">📡 爬取进度</h3>
-      <div id="progressList" class="space-y-2 text-sm"></div>
-      <!-- 完成后的报告链接 -->
+      <h3 class="text-sm font-semibold text-gray-600 mb-3">📡 爬取进度</h3>
+      <div id="progressList" class="space-y-3 text-sm"></div>
       <div id="reportLinks" class="hidden mt-4 border-t pt-4">
         <p class="text-sm font-semibold text-green-700 mb-2">✅ 全部完成！生成的分析报告：</p>
-        <ul id="reportLinkList" class="space-y-1 text-sm text-blue-600 list-disc list-inside"></ul>
+        <ul id="reportLinkList" class="space-y-1 text-sm list-disc list-inside text-gray-600"></ul>
       </div>
     </div>
   </section>
 
   <!-- ===== 定时任务 ===== -->
-  <section id="pane-tasks" class="hidden">
+  <section id="pane-tasks" class="hidden space-y-4">
+    <!-- 创建表单 -->
     <div class="bg-white rounded-xl shadow-sm border p-6">
-      <h2 class="text-lg font-semibold mb-4">⏰ 创建定时任务</h2>
+      <h2 class="text-base font-semibold mb-4">⏰ 创建定时任务</h2>
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-xs text-gray-500 mb-1">采集间隔（小时）</label>
           <input type="number" id="newInterval" value="6" min="0.1" step="0.5"
-            class="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
-          <div class="flex gap-2 mt-2 flex-wrap">
-            <button onclick="setInterval2(1)"  class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-blue-100">1h</button>
-            <button onclick="setInterval2(6)"  class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-blue-100">6h</button>
-            <button onclick="setInterval2(12)" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-blue-100">12h</button>
-            <button onclick="setInterval2(24)" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-blue-100">24h</button>
-            <button onclick="setInterval2(168)" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-blue-100">7天</button>
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" />
+          <div class="flex gap-1.5 mt-2 flex-wrap">
+            <button onclick="setIntervalVal(1)"   class="text-xs px-2.5 py-1 bg-gray-100 rounded hover:bg-blue-100 transition">1h</button>
+            <button onclick="setIntervalVal(6)"   class="text-xs px-2.5 py-1 bg-gray-100 rounded hover:bg-blue-100 transition">6h</button>
+            <button onclick="setIntervalVal(12)"  class="text-xs px-2.5 py-1 bg-gray-100 rounded hover:bg-blue-100 transition">12h</button>
+            <button onclick="setIntervalVal(24)"  class="text-xs px-2.5 py-1 bg-gray-100 rounded hover:bg-blue-100 transition">24h</button>
+            <button onclick="setIntervalVal(168)" class="text-xs px-2.5 py-1 bg-gray-100 rounded hover:bg-blue-100 transition">7天</button>
           </div>
         </div>
         <div>
           <label class="block text-xs text-gray-500 mb-1">链接列表（每行一个）</label>
           <textarea id="newUrls" rows="4" placeholder="https://mp.weixin.qq.com/s/xxxxx"
-            class="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none resize-y"></textarea>
+            class="mono w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none resize-y bg-gray-50"></textarea>
         </div>
       </div>
       <button onclick="createTask()"
@@ -88,12 +112,13 @@
       </button>
     </div>
 
-    <div class="mt-4 bg-white rounded-xl shadow-sm border p-6">
+    <!-- 任务列表 -->
+    <div class="bg-white rounded-xl shadow-sm border p-6">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="font-semibold">任务列表</h3>
+        <h3 class="text-sm font-semibold text-gray-700">任务列表</h3>
         <button onclick="loadTasks()" class="text-xs text-blue-500 hover:underline">刷新</button>
       </div>
-      <div id="taskList" class="space-y-3 text-sm text-gray-500">加载中...</div>
+      <div id="taskList" class="space-y-3 text-sm text-gray-400">加载中...</div>
     </div>
   </section>
 
@@ -101,47 +126,60 @@
   <section id="pane-history" class="hidden">
     <div class="bg-white rounded-xl shadow-sm border p-6">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold">📋 执行历史</h2>
+        <h2 class="text-base font-semibold">📋 执行历史</h2>
         <button onclick="loadHistory()" class="text-xs text-blue-500 hover:underline">刷新</button>
       </div>
-      <div id="historyList" class="space-y-2 text-sm text-gray-500">加载中...</div>
+      <div id="historyList" class="space-y-1.5 text-sm text-gray-400 max-h-[60vh] overflow-y-auto">加载中...</div>
     </div>
   </section>
 
   <!-- ===== Agent Prompts ===== -->
   <section id="pane-prompts" class="hidden">
     <div class="bg-white rounded-xl shadow-sm border p-6">
-      <h2 class="text-lg font-semibold mb-1">🤖 Agent Prompt 管理</h2>
-      <p class="text-sm text-gray-500 mb-5">修改每个 Agent 的 System Prompt，保存后立即生效（下次爬取时使用）</p>
-      <div id="promptList" class="space-y-6">加载中...</div>
+      <h2 class="text-base font-semibold mb-1">🤖 Agent Prompt 管理</h2>
+      <p class="text-sm text-gray-400 mb-5">修改每个 Agent 的 System Prompt，保存后立即生效（下次爬取时使用）</p>
+      <div id="promptList" class="space-y-6 text-sm text-gray-400">加载中...</div>
     </div>
   </section>
 
 </main>
 
 <script>
-// ===================== 全局状态 =====================
+// =================== 全局 ===================
 const API = '';
-let currentTab = 'crawl';
+const TABS = ['crawl','tasks','history','prompts'];
 
 function showTab(tab) {
-  ['crawl','tasks','history','prompts'].forEach(t => {
+  TABS.forEach(t => {
     document.getElementById(`pane-${t}`).classList.toggle('hidden', t !== tab);
     const btn = document.getElementById(`tab-${t}`);
-    if (t === tab) { btn.classList.add('tab-active'); btn.classList.remove('text-gray-500'); }
-    else { btn.classList.remove('tab-active'); btn.classList.add('text-gray-500'); }
+    btn.classList.toggle('tab-active', t === tab);
+    btn.classList.toggle('text-gray-500', t !== tab);
   });
-  currentTab = tab;
   if (tab === 'tasks')   loadTasks();
   if (tab === 'history') loadHistory();
   if (tab === 'prompts') loadPrompts();
 }
 
-// ===================== 健康检查 =====================
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || '请求失败');
+  return data;
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// =================== 健康检查 ===================
 async function checkHealth() {
   try {
-    const r = await fetch(`${API}/api/health`);
-    const d = await r.json();
+    const d = await apiFetch('/api/health');
     const badge = document.getElementById('healthBadge');
     badge.textContent = `✅ 运行中 · ${d.activeTasks} 个定时任务`;
     badge.className = 'text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700';
@@ -151,46 +189,43 @@ async function checkHealth() {
     badge.className = 'text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600';
   }
 }
-setInterval(checkHealth, 30000);
 checkHealth();
+setInterval(checkHealth, 30000);
 
-// ===================== 快速爬取 + 进度 =====================
+// =================== 快速爬取 + SSE 进度 ===================
 const STEP_LABELS = {
-  crawl:      '🌐 爬取文章',
-  parse:      '📝 解析转换',
-  index:      '🔢 向量化索引',
-  analyst:    '🧠 Analyst 分析',
-  critic:     '🔍 Critic 评估',
-  strategist: '🧭 Strategist 整合',
-  evolve:     '🔗 生成演化链',
+  crawl:      '🌐 爬取',
+  parse:      '📝 解析',
+  index:      '🔢 索引',
+  analyst:    '🧠 Analyst',
+  critic:     '🔍 Critic',
+  strategist: '🧭 Strategist',
+  evolve:     '🔗 演化',
   done:       '✅ 完成',
   error:      '❌ 失败',
 };
 const STEPS_ORDER = ['crawl','parse','index','analyst','critic','strategist','evolve','done'];
-
-let activeSessions = {}; // sessionId -> { urlStates, urlEls }
+const activeSessions = {};
 
 function startCrawl() {
-  const raw = document.getElementById('crawlUrls').value;
-  const urls = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  const urls = document.getElementById('crawlUrls').value
+    .split('\n').map(s => s.trim()).filter(Boolean);
   if (!urls.length) { alert('请输入至少一个链接'); return; }
 
   const btn = document.getElementById('crawlBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> 爬取中...';
+  btn.innerHTML = '<span class="spinner mr-1"></span>爬取中...';
 
-  fetch(`${API}/api/crawl`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ urls }),
-  })
-  .then(r => r.json())
-  .then(d => {
-    if (d.error) { alert(d.error); btn.disabled = false; btn.innerHTML = '▶ 开始爬取'; return; }
-    showProgressPanel(d.sessionId, urls);
-    connectSSE(d.sessionId, urls, btn);
-  })
-  .catch(e => { alert('请求失败: ' + e.message); btn.disabled = false; btn.innerHTML = '▶ 开始爬取'; });
+  apiFetch('/api/crawl', { method: 'POST', body: { urls } })
+    .then(d => {
+      showProgressPanel(d.sessionId, urls);
+      connectSSE(d.sessionId, urls, btn);
+    })
+    .catch(e => {
+      alert('请求失败: ' + e.message);
+      btn.disabled = false;
+      btn.innerHTML = '▶ 开始爬取';
+    });
 }
 
 function showProgressPanel(sessionId, urls) {
@@ -198,41 +233,36 @@ function showProgressPanel(sessionId, urls) {
   panel.classList.remove('hidden');
   document.getElementById('reportLinks').classList.add('hidden');
   document.getElementById('reportLinkList').innerHTML = '';
-
   const list = document.getElementById('progressList');
   list.innerHTML = '';
 
-  const urlStates = {};
   const urlEls = {};
-
   urls.forEach(url => {
-    urlStates[url] = 'pending';
-    const shortUrl = url.length > 60 ? url.slice(0, 60) + '…' : url;
+    const short = url.length > 65 ? url.slice(0, 65) + '…' : url;
     const div = document.createElement('div');
-    div.className = 'border rounded-lg p-3';
+    div.className = 'border rounded-lg p-3 bg-gray-50';
     div.innerHTML = `
       <div class="flex items-center gap-2 mb-2">
-        <span class="w-2 h-2 rounded-full bg-gray-300 url-dot"></span>
-        <span class="text-xs text-gray-400 truncate flex-1" title="${url}">${shortUrl}</span>
+        <span class="w-2 h-2 rounded-full bg-gray-300 shrink-0 url-dot"></span>
+        <span class="mono text-xs text-gray-400 truncate flex-1" title="${escapeHtml(url)}">${escapeHtml(short)}</span>
       </div>
-      <div class="url-progress flex gap-1 flex-wrap"></div>
-      <div class="url-msg text-xs text-gray-400 mt-1"></div>
+      <div class="url-steps flex gap-1 flex-wrap"></div>
+      <div class="url-msg text-xs text-gray-400 mt-1.5 h-4"></div>
     `;
     list.appendChild(div);
     urlEls[url] = div;
 
-    // 初始化步骤气泡
-    const stepsEl = div.querySelector('.url-progress');
+    const stepsEl = div.querySelector('.url-steps');
     STEPS_ORDER.forEach(s => {
       const chip = document.createElement('span');
-      chip.id = `chip-${sessionId}-${btoa(url).slice(0,8)}-${s}`;
-      chip.className = 'text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400';
+      chip.id = `chip-${sessionId}-${btoa(url).replace(/=/g,'').slice(0,10)}-${s}`;
+      chip.className = 'chip chip-gray';
       chip.textContent = STEP_LABELS[s] || s;
       stepsEl.appendChild(chip);
     });
   });
 
-  activeSessions[sessionId] = { urlStates, urlEls };
+  activeSessions[sessionId] = { urlEls };
 }
 
 function connectSSE(sessionId, urls, btn) {
@@ -245,59 +275,54 @@ function connectSSE(sessionId, urls, btn) {
     const d = JSON.parse(e.data);
     if (d.type === 'connected') return;
 
-    const url = d.url;
-    const step = d.step;
-    const el = urlEls[url];
+    const el = urlEls[d.url];
     if (!el) return;
 
-    // 更新步骤气泡颜色
-    const chipId = `chip-${sessionId}-${btoa(url).slice(0,8)}-${step}`;
-    const chip = document.getElementById(chipId);
+    const keyPart = btoa(d.url).replace(/=/g,'').slice(0,10);
+    const idx = STEPS_ORDER.indexOf(d.step);
+
+    // 之前步骤全部变绿
+    STEPS_ORDER.slice(0, idx).forEach(s => {
+      const c = document.getElementById(`chip-${sessionId}-${keyPart}-${s}`);
+      if (c) { c.className = 'chip chip-green'; }
+    });
+
+    // 当前步骤
+    const chip = document.getElementById(`chip-${sessionId}-${keyPart}-${d.step}`);
     if (chip) {
-      // 所有之前步骤标绿
-      const idx = STEPS_ORDER.indexOf(step);
-      STEPS_ORDER.slice(0, idx).forEach(s => {
-        const c = document.getElementById(`chip-${sessionId}-${btoa(url).slice(0,8)}-${s}`);
-        if (c) { c.className = 'text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700'; }
-      });
-      if (step === 'error') {
-        chip.className = 'text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600 animate-pulse';
-      } else if (step === 'done') {
-        chip.className = 'text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700';
-      } else {
-        chip.className = 'text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 animate-pulse';
-      }
+      if (d.step === 'error') chip.className = 'chip chip-red';
+      else if (d.step === 'done') chip.className = 'chip chip-green';
+      else chip.className = 'chip chip-blue';
     }
 
-    // 更新小圆点和信息
     const dot = el.querySelector('.url-dot');
     const msg = el.querySelector('.url-msg');
     msg.textContent = d.message;
-    if (step === 'done') {
-      dot.className = 'w-2 h-2 rounded-full bg-green-500 url-dot';
-      if (d.reportPath) reportPaths.push({ url, path: d.reportPath });
+    msg.className = 'url-msg text-xs mt-1.5 h-4 ' + (d.step === 'error' ? 'text-red-500' : 'text-gray-400');
+
+    if (d.step === 'done') {
+      dot.className = 'w-2 h-2 rounded-full bg-green-500 shrink-0 url-dot';
+      if (d.reportPath) reportPaths.push(d.reportPath);
       doneCount++;
-    } else if (step === 'error') {
-      dot.className = 'w-2 h-2 rounded-full bg-red-500 url-dot';
-      msg.className = 'url-msg text-xs text-red-500 mt-1';
+    } else if (d.step === 'error') {
+      dot.className = 'w-2 h-2 rounded-full bg-red-500 shrink-0 url-dot';
       doneCount++;
     } else {
-      dot.className = 'w-2 h-2 rounded-full bg-blue-400 animate-pulse url-dot';
+      dot.className = 'w-2 h-2 rounded-full bg-blue-400 shrink-0 url-dot';
     }
 
-    // 全部完成
     if (doneCount >= urls.length) {
       es.close();
       btn.disabled = false;
       btn.innerHTML = '▶ 开始爬取';
-
       if (reportPaths.length) {
         document.getElementById('reportLinks').classList.remove('hidden');
         const ul = document.getElementById('reportLinkList');
-        reportPaths.forEach(({ path }) => {
+        reportPaths.forEach(p => {
           const li = document.createElement('li');
-          const fname = path.split(/[\\/]/).pop();
-          li.innerHTML = `<span class="text-green-700">📄 ${fname}</span> <span class="text-gray-400 text-xs ml-1">${path}</span>`;
+          const fname = p.split(/[\\/]/).pop();
+          li.innerHTML = `<span class="font-medium text-gray-700">📄 ${escapeHtml(fname)}</span>
+            <span class="text-gray-400 text-xs ml-2 mono">${escapeHtml(p)}</span>`;
           ul.appendChild(li);
         });
       }
@@ -311,35 +336,41 @@ function connectSSE(sessionId, urls, btn) {
   };
 }
 
-// ===================== 定时任务 =====================
-function setInterval2(h) { document.getElementById('newInterval').value = h; }
+// =================== 定时任务 ===================
+function setIntervalVal(h) { document.getElementById('newInterval').value = h; }
 
 async function loadTasks() {
   const el = document.getElementById('taskList');
   try {
-    const r = await fetch(`${API}/api/tasks`);
-    const d = await r.json();
-    if (!d.tasks.length) { el.innerHTML = '<p class="text-gray-400">暂无定时任务</p>'; return; }
-    el.innerHTML = d.tasks.map(t => `
-      <div class="border rounded-lg p-4 ${t.enabled ? 'border-blue-200 bg-blue-50' : 'bg-gray-50'}">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full ${t.enabled ? 'bg-green-500' : 'bg-gray-400'}"></span>
-            <span class="font-medium text-sm">每 ${t.intervalHours}h · ${t.urls.length} 个链接</span>
+    const { tasks } = await apiFetch('/api/tasks');
+    if (!tasks.length) { el.innerHTML = '<p class="text-gray-400">暂无定时任务</p>'; return; }
+    el.innerHTML = tasks.map(t => `
+      <div class="border rounded-lg p-4 ${t.enabled ? 'border-blue-200 bg-blue-50/40' : 'bg-gray-50'}">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-2 h-2 rounded-full shrink-0 ${t.enabled ? 'bg-green-500' : 'bg-gray-400'}"></span>
+            <span class="font-medium text-sm">每 ${t.intervalHours}h</span>
+            <span class="text-xs text-gray-400">${t.urls.length} 个链接</span>
           </div>
-          <div class="flex gap-2">
+          <div class="flex gap-1.5 shrink-0">
+            <button onclick="runTask('${t.id}')"
+              class="text-xs px-2.5 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition">▶ 执行</button>
             <button onclick="toggleTask('${t.id}', ${!t.enabled})"
-              class="text-xs px-3 py-1 rounded ${t.enabled ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}">
-              ${t.enabled ? '暂停' : '启用'}
+              class="text-xs px-2.5 py-1 rounded transition ${t.enabled
+                ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                : 'bg-green-100 text-green-700 hover:bg-green-200'}">
+              ${t.enabled ? '⏸ 暂停' : '▶ 启用'}
             </button>
-            <button onclick="runTask('${t.id}')" class="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">立即执行</button>
-            <button onclick="deleteTask('${t.id}')" class="text-xs px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200">删除</button>
+            <button onclick="deleteTask('${t.id}')"
+              class="text-xs px-2.5 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 transition">✕</button>
           </div>
         </div>
-        <div class="mt-2 text-xs text-gray-400 space-y-0.5">
-          <div>${t.urls.map(u => `<span class="truncate block">${u}</span>`).join('')}</div>
-          <div>上次: ${t.lastRunAt ? new Date(t.lastRunAt).toLocaleString('zh-CN') : '从未'} · 下次: ${t.nextRunAt ? new Date(t.nextRunAt).toLocaleString('zh-CN') : '-'}</div>
-        </div>
+        <details class="mt-2">
+          <summary class="text-xs text-blue-500 cursor-pointer hover:underline">查看链接 · 上次 ${t.lastRunAt ? new Date(t.lastRunAt).toLocaleString('zh-CN') : '从未'} · 下次 ${t.nextRunAt ? new Date(t.nextRunAt).toLocaleString('zh-CN') : '-'}</summary>
+          <ul class="mt-1.5 ml-2 space-y-0.5 mono text-xs text-gray-500">
+            ${t.urls.map(u => `<li class="truncate" title="${escapeHtml(u)}">${escapeHtml(u)}</li>`).join('')}
+          </ul>
+        </details>
       </div>
     `).join('');
   } catch (e) { el.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`; }
@@ -349,80 +380,72 @@ async function createTask() {
   const intervalHours = parseFloat(document.getElementById('newInterval').value);
   const urls = document.getElementById('newUrls').value.split('\n').map(s => s.trim()).filter(Boolean);
   if (!urls.length) { alert('请输入链接'); return; }
-  if (!intervalHours || intervalHours < 0.1) { alert('间隔时间最少 0.1 小时'); return; }
-  await fetch(`${API}/api/tasks`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ urls, intervalHours }),
-  });
+  if (!intervalHours || intervalHours < 0.1) { alert('间隔最少 0.1 小时'); return; }
+  await apiFetch('/api/tasks', { method: 'POST', body: { urls, intervalHours } });
   document.getElementById('newUrls').value = '';
   loadTasks();
 }
 
 async function toggleTask(id, enabled) {
-  await fetch(`${API}/api/tasks/${id}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ enabled }),
-  });
+  await apiFetch(`/api/tasks/${id}`, { method: 'PUT', body: { enabled } });
   loadTasks();
 }
 
 async function runTask(id) {
-  await fetch(`${API}/api/tasks/${id}/run`, { method: 'POST' });
-  alert('已开始执行，请查看执行历史');
+  await apiFetch(`/api/tasks/${id}/run`, { method: 'POST' });
+  alert('已开始执行，请在「执行历史」查看进度');
 }
 
 async function deleteTask(id) {
   if (!confirm('确认删除？')) return;
-  await fetch(`${API}/api/tasks/${id}`, { method: 'DELETE' });
+  await apiFetch(`/api/tasks/${id}`, { method: 'DELETE' });
   loadTasks();
 }
 
-// ===================== 执行历史 =====================
+// =================== 执行历史 ===================
 async function loadHistory() {
   const el = document.getElementById('historyList');
   try {
-    const r = await fetch(`${API}/api/history?limit=100`);
-    const d = await r.json();
-    if (!d.history.length) { el.innerHTML = '<p class="text-gray-400">暂无执行历史</p>'; return; }
-    const statusMap = { running: '🔄 执行中', success: '✅ 成功', failed: '❌ 失败' };
-    const statusColor = { running: 'text-blue-600', success: 'text-green-600', failed: 'text-red-600' };
-    el.innerHTML = d.history.map(h => `
-      <div class="flex items-start gap-3 border-b pb-2 last:border-0">
-        <span class="${statusColor[h.status]} font-medium w-20 shrink-0">${statusMap[h.status]}</span>
+    const { history } = await apiFetch('/api/history?limit=100');
+    if (!history.length) { el.innerHTML = '<p class="text-gray-400">暂无执行历史</p>'; return; }
+    const badge = {
+      running: '<span class="chip chip-blue">运行中</span>',
+      success: '<span class="chip chip-green">成功</span>',
+      failed:  '<span class="chip chip-red">失败</span>',
+    };
+    el.innerHTML = history.map(h => `
+      <div class="flex items-start gap-2.5 border-b border-gray-100 py-2 last:border-0">
+        ${badge[h.status] || ''}
         <div class="flex-1 min-w-0">
-          <p class="truncate text-xs text-gray-600">${h.url}</p>
-          ${h.error ? `<p class="text-xs text-red-500 mt-0.5">${h.error}</p>` : ''}
-          ${h.docId ? `<p class="text-xs text-gray-400 mt-0.5">docId: ${h.docId}</p>` : ''}
+          <p class="mono text-xs text-gray-600 truncate" title="${escapeHtml(h.url)}">${escapeHtml(h.url)}</p>
+          ${h.error  ? `<p class="text-xs text-red-400 mt-0.5">${escapeHtml(h.error)}</p>` : ''}
+          ${h.docId  ? `<p class="mono text-xs text-gray-400 mt-0.5">${h.docId}</p>` : ''}
         </div>
-        <span class="text-xs text-gray-400 shrink-0">${new Date(h.startedAt).toLocaleString('zh-CN')}</span>
+        <span class="text-xs text-gray-400 shrink-0 whitespace-nowrap">
+          ${new Date(h.startedAt).toLocaleString('zh-CN')}
+        </span>
       </div>
     `).join('');
   } catch (e) { el.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`; }
 }
 setInterval(loadHistory, 15000);
 
-// ===================== Agent Prompts =====================
-let promptsCache = [];
-
+// =================== Agent Prompts ===================
 async function loadPrompts() {
   const el = document.getElementById('promptList');
   try {
-    const r = await fetch(`${API}/api/prompts`);
-    const d = await r.json();
-    promptsCache = d.prompts;
-    renderPrompts(d.prompts);
+    const { prompts } = await apiFetch('/api/prompts');
+    renderPrompts(prompts);
   } catch (e) { el.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`; }
 }
 
 function renderPrompts(prompts) {
-  const el = document.getElementById('promptList');
-  el.innerHTML = prompts.map(p => `
+  document.getElementById('promptList').innerHTML = prompts.map(p => `
     <div class="border rounded-xl p-5" id="prompt-block-${p.id}">
-      <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center justify-between mb-3">
         <div>
-          <span class="font-semibold text-gray-800">${p.name}</span>
-          <span class="ml-2 text-xs text-gray-400">${p.description}</span>
+          <span class="font-semibold text-gray-800">${escapeHtml(p.name)}</span>
+          <span class="ml-2 text-xs text-gray-400">${escapeHtml(p.description)}</span>
         </div>
         <div class="flex gap-2">
           <button onclick="savePromptItem('${p.id}')"
@@ -435,33 +458,23 @@ function renderPrompts(prompts) {
           </button>
         </div>
       </div>
-      <textarea id="prompt-ta-${p.id}" class="prompt-editor w-full border rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y bg-gray-50"
+      <textarea id="prompt-ta-${p.id}"
+        class="mono w-full border rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y bg-gray-50"
         rows="12">${escapeHtml(p.systemPrompt)}</textarea>
-      <p id="prompt-msg-${p.id}" class="text-xs mt-1 h-4"></p>
+      <p id="prompt-msg-${p.id}" class="text-xs mt-1 h-4 text-gray-400"></p>
     </div>
   `).join('');
 }
 
-function escapeHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
 async function savePromptItem(id) {
-  const ta = document.getElementById(`prompt-ta-${id}`);
+  const ta  = document.getElementById(`prompt-ta-${id}`);
   const msg = document.getElementById(`prompt-msg-${id}`);
-  const systemPrompt = ta.value;
-  if (!systemPrompt.trim()) { msg.textContent = '内容不能为空'; msg.className = 'text-xs mt-1 h-4 text-red-500'; return; }
+  if (!ta.value.trim()) { msg.textContent = '内容不能为空'; msg.className = 'text-xs mt-1 h-4 text-red-500'; return; }
   try {
-    const r = await fetch(`${API}/api/prompts/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ systemPrompt }),
-    });
-    const d = await r.json();
-    if (d.error) throw new Error(d.error);
+    await apiFetch(`/api/prompts/${id}`, { method: 'PUT', body: { systemPrompt: ta.value } });
     msg.textContent = '✅ 已保存';
     msg.className = 'text-xs mt-1 h-4 text-green-600';
-    setTimeout(() => { msg.textContent = ''; }, 2000);
+    setTimeout(() => { msg.textContent = ''; msg.className = 'text-xs mt-1 h-4 text-gray-400'; }, 2500);
   } catch(e) {
     msg.textContent = '保存失败: ' + e.message;
     msg.className = 'text-xs mt-1 h-4 text-red-500';
@@ -470,313 +483,13 @@ async function savePromptItem(id) {
 
 async function resetPromptItem(id) {
   if (!confirm('确认还原为默认 Prompt？')) return;
-  const msg = document.getElementById(`prompt-msg-${id}`);
   try {
-    const r = await fetch(`${API}/api/prompts/${id}/reset`, { method: 'POST' });
-    const d = await r.json();
-    if (d.error) throw new Error(d.error);
-    renderPrompts(d.prompts);
-    msg && (msg.textContent = '✅ 已还原', msg.className = 'text-xs mt-1 h-4 text-green-600');
+    const { prompts } = await apiFetch(`/api/prompts/${id}/reset`, { method: 'POST' });
+    renderPrompts(prompts);
   } catch(e) {
-    if (msg) { msg.textContent = '失败: ' + e.message; msg.className = 'text-xs mt-1 h-4 text-red-500'; }
+    alert('还原失败: ' + e.message);
   }
 }
-</script>
-</body>
-</html>
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>微信公众号知识演化系统</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    .fade-in { animation: fadeIn 0.3s ease-in; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-    .toast { position: fixed; top: 20px; right: 20px; z-index: 1000; }
-  </style>
-</head>
-<body class="bg-gray-50 min-h-screen">
-  <!-- Toast 通知 -->
-  <div id="toast" class="toast hidden"></div>
-
-  <div class="max-w-5xl mx-auto px-4 py-8">
-    <!-- 标题 -->
-    <header class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-800">微信公众号知识演化系统</h1>
-      <p class="text-gray-500 mt-1">定时采集 · 多Agent分析 · 知识演化</p>
-      <div class="flex items-center gap-2 mt-2">
-        <span id="healthDot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
-        <span id="healthText" class="text-sm text-gray-500">检测中...</span>
-      </div>
-    </header>
-
-    <!-- 快速爬取 -->
-    <section class="bg-white rounded-xl shadow-sm border p-6 mb-6 fade-in">
-      <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-        <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-        快速爬取
-      </h2>
-      <p class="text-sm text-gray-500 mb-3">输入链接立即爬取（走完整管线），不创建定时任务。每行一个链接。</p>
-      <textarea id="quickUrls" rows="3" placeholder="https://mp.weixin.qq.com/s/xxxxx&#10;https://mp.weixin.qq.com/s/yyyyy"
-        class="w-full border rounded-lg p-3 text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent resize-y"></textarea>
-      <button onclick="quickCrawl()" class="mt-3 bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition">
-        立即爬取
-      </button>
-    </section>
-
-    <!-- 创建定时任务 -->
-    <section class="bg-white rounded-xl shadow-sm border p-6 mb-6 fade-in">
-      <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-        <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        创建定时任务
-      </h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-        <div class="md:col-span-1">
-          <label class="block text-sm font-medium text-gray-700 mb-1">采集间隔</label>
-          <div class="flex items-center gap-2">
-            <input id="intervalHours" type="number" min="0.1" step="0.1" value="24" 
-              class="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-400 focus:border-transparent">
-            <span class="text-sm text-gray-500 whitespace-nowrap">小时</span>
-          </div>
-          <div class="flex flex-wrap gap-1.5 mt-2">
-            <button onclick="setInterval(1)" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">1h</button>
-            <button onclick="setInterval(6)" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">6h</button>
-            <button onclick="setInterval(12)" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">12h</button>
-            <button onclick="setInterval(24)" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">24h</button>
-            <button onclick="setInterval(168)" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded">7天</button>
-          </div>
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-sm font-medium text-gray-700 mb-1">爬取链接（每行一个）</label>
-          <textarea id="taskUrls" rows="4" placeholder="https://mp.weixin.qq.com/s/xxxxx&#10;https://mp.weixin.qq.com/s/yyyyy"
-            class="w-full border rounded-lg p-3 text-sm focus:ring-2 focus:ring-green-400 focus:border-transparent resize-y"></textarea>
-        </div>
-      </div>
-      <button onclick="createScheduledTask()" class="bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition">
-        创建定时任务
-      </button>
-    </section>
-
-    <!-- 定时任务列表 -->
-    <section class="bg-white rounded-xl shadow-sm border p-6 mb-6 fade-in">
-      <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
-        <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
-        定时任务列表
-      </h2>
-      <div id="taskList" class="space-y-3">
-        <p class="text-gray-400 text-sm">加载中...</p>
-      </div>
-    </section>
-
-    <!-- 执行历史 -->
-    <section class="bg-white rounded-xl shadow-sm border p-6 fade-in">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold flex items-center gap-2">
-          <svg class="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-          执行历史
-        </h2>
-        <button onclick="loadHistory()" class="text-sm text-blue-600 hover:underline">刷新</button>
-      </div>
-      <div id="historyList" class="space-y-2 max-h-96 overflow-y-auto">
-        <p class="text-gray-400 text-sm">加载中...</p>
-      </div>
-    </section>
-  </div>
-
-<script>
-const API = '';
-
-// ===== 工具函数 =====
-function showToast(msg, type = 'success') {
-  const el = document.getElementById('toast');
-  const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' };
-  el.className = `toast ${colors[type] || colors.info} text-white px-4 py-2.5 rounded-lg shadow-lg text-sm fade-in`;
-  el.textContent = msg;
-  el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 3000);
-}
-
-async function api(path, opts = {}) {
-  const res = await fetch(API + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...opts,
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || '请求失败');
-  return data;
-}
-
-function formatTime(iso) {
-  if (!iso) return '-';
-  const d = new Date(iso);
-  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-
-function setIntervalVal(h) {
-  document.getElementById('intervalHours').value = h;
-}
-
-// ===== 健康检查 =====
-async function checkHealth() {
-  try {
-    const data = await api('/api/health');
-    document.getElementById('healthDot').className = 'w-2.5 h-2.5 rounded-full bg-green-500';
-    document.getElementById('healthText').textContent =
-      `运行中 · 活跃任务 ${data.activeTasks} · 已运行 ${Math.floor(data.uptime / 3600)}h${Math.floor((data.uptime % 3600) / 60)}m`;
-  } catch {
-    document.getElementById('healthDot').className = 'w-2.5 h-2.5 rounded-full bg-red-500';
-    document.getElementById('healthText').textContent = '连接失败';
-  }
-}
-
-// ===== 快速爬取 =====
-async function quickCrawl() {
-  const urls = document.getElementById('quickUrls').value.split('\n').map(u => u.trim()).filter(Boolean);
-  if (urls.length === 0) return showToast('请输入至少一个链接', 'error');
-
-  try {
-    const data = await api('/api/crawl', { method: 'POST', body: { urls } });
-    showToast(data.message);
-    document.getElementById('quickUrls').value = '';
-    setTimeout(loadHistory, 2000);
-  } catch (e) {
-    showToast(e.message, 'error');
-  }
-}
-
-// ===== 创建定时任务 =====
-async function createScheduledTask() {
-  const urls = document.getElementById('taskUrls').value.split('\n').map(u => u.trim()).filter(Boolean);
-  const intervalHours = parseFloat(document.getElementById('intervalHours').value);
-
-  if (urls.length === 0) return showToast('请输入至少一个链接', 'error');
-  if (!intervalHours || intervalHours < 0.1) return showToast('间隔最少 0.1 小时', 'error');
-
-  try {
-    await api('/api/tasks', { method: 'POST', body: { urls, intervalHours } });
-    showToast('定时任务已创建');
-    document.getElementById('taskUrls').value = '';
-    loadTasks();
-  } catch (e) {
-    showToast(e.message, 'error');
-  }
-}
-
-// ===== 任务列表 =====
-async function loadTasks() {
-  try {
-    const { tasks } = await api('/api/tasks');
-    const container = document.getElementById('taskList');
-
-    if (tasks.length === 0) {
-      container.innerHTML = '<p class="text-gray-400 text-sm">暂无定时任务</p>';
-      return;
-    }
-
-    container.innerHTML = tasks.map(t => `
-      <div class="border rounded-lg p-4 ${t.enabled ? 'border-green-200 bg-green-50/30' : 'border-gray-200 bg-gray-50/50'}">
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="inline-block w-2 h-2 rounded-full ${t.enabled ? 'bg-green-500' : 'bg-gray-400'}"></span>
-              <span class="text-sm font-medium text-gray-700">每 ${t.intervalHours} 小时</span>
-              <span class="text-xs text-gray-400">${t.urls.length} 个链接</span>
-            </div>
-            <div class="text-xs text-gray-500 space-y-0.5">
-              <div>上次执行: ${formatTime(t.lastRunAt)}</div>
-              <div>下次执行: ${formatTime(t.nextRunAt)}</div>
-              <details class="mt-1">
-                <summary class="cursor-pointer text-blue-500 hover:underline">查看链接</summary>
-                <ul class="mt-1 ml-2 space-y-0.5">${t.urls.map(u => `<li class="truncate" title="${u}">${u}</li>`).join('')}</ul>
-              </details>
-            </div>
-          </div>
-          <div class="flex items-center gap-1.5 shrink-0">
-            <button onclick="runNow('${t.id}')" class="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 px-2.5 py-1.5 rounded transition" title="立即执行">
-              ▶ 执行
-            </button>
-            <button onclick="toggleTask('${t.id}', ${!t.enabled})" class="text-xs ${t.enabled ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' : 'bg-green-100 text-green-700 hover:bg-green-200'} px-2.5 py-1.5 rounded transition">
-              ${t.enabled ? '⏸ 暂停' : '▶ 启用'}
-            </button>
-            <button onclick="removeTask('${t.id}')" class="text-xs bg-red-100 text-red-700 hover:bg-red-200 px-2.5 py-1.5 rounded transition" title="删除">
-              ✕
-            </button>
-          </div>
-        </div>
-      </div>
-    `).join('');
-  } catch {
-    document.getElementById('taskList').innerHTML = '<p class="text-red-400 text-sm">加载失败</p>';
-  }
-}
-
-// ===== 任务操作 =====
-async function toggleTask(id, enabled) {
-  try {
-    await api(`/api/tasks/${id}`, { method: 'PUT', body: { enabled } });
-    showToast(enabled ? '任务已启用' : '任务已暂停');
-    loadTasks();
-  } catch (e) { showToast(e.message, 'error'); }
-}
-
-async function removeTask(id) {
-  if (!confirm('确定删除该定时任务？')) return;
-  try {
-    await api(`/api/tasks/${id}`, { method: 'DELETE' });
-    showToast('任务已删除');
-    loadTasks();
-  } catch (e) { showToast(e.message, 'error'); }
-}
-
-async function runNow(id) {
-  try {
-    const data = await api(`/api/tasks/${id}/run`, { method: 'POST' });
-    showToast(data.message);
-    setTimeout(loadHistory, 3000);
-  } catch (e) { showToast(e.message, 'error'); }
-}
-
-// ===== 执行历史 =====
-async function loadHistory() {
-  try {
-    const { history } = await api('/api/history');
-    const container = document.getElementById('historyList');
-
-    if (history.length === 0) {
-      container.innerHTML = '<p class="text-gray-400 text-sm">暂无执行记录</p>';
-      return;
-    }
-
-    container.innerHTML = history.map(h => {
-      const statusMap = {
-        running: '<span class="text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs">运行中</span>',
-        success: '<span class="text-green-600 bg-green-50 px-2 py-0.5 rounded text-xs">成功</span>',
-        failed: '<span class="text-red-600 bg-red-50 px-2 py-0.5 rounded text-xs">失败</span>',
-      };
-      return `
-        <div class="flex items-center gap-3 text-sm py-2 border-b border-gray-100 last:border-0">
-          ${statusMap[h.status] || ''}
-          <span class="flex-1 truncate text-gray-600" title="${h.url}">${h.url}</span>
-          <span class="text-xs text-gray-400 whitespace-nowrap">${formatTime(h.startedAt)}</span>
-          ${h.error ? `<span class="text-xs text-red-400 truncate max-w-32" title="${h.error}">${h.error}</span>` : ''}
-        </div>
-      `;
-    }).join('');
-  } catch {
-    document.getElementById('historyList').innerHTML = '<p class="text-red-400 text-sm">加载失败</p>';
-  }
-}
-
-// ===== 初始化 =====
-checkHealth();
-loadTasks();
-loadHistory();
-setInterval(checkHealth, 30000);
-setInterval(loadTasks, 15000);
-setInterval(loadHistory, 10000);
 </script>
 </body>
 </html>
