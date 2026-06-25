@@ -11,8 +11,22 @@ import { generateEvolution } from './evolution';
 import { processArticle, processMultipleArticles, startScheduler } from './scheduler';
 import { isFeishuConfigured, createFeishuDoc } from './feishu';
 import * as fs from 'fs';
+import {
+  getWechatPublishedArticles,
+  getWechatSessionFile,
+  listWechatSubscriptions,
+  loadWechatSession,
+  loginWechatPlatform,
+  removeWechatSession,
+  removeWechatSubscription,
+  searchWechatBiz,
+  upsertWechatSubscription,
+} from './wechat-platform';
+import { cleanupRuntimeArtifacts } from './runtime/cleanup';
 
 const program = new Command();
+
+process.once('exit', cleanupRuntimeArtifacts);
 
 program
   .name('wkb')
@@ -197,6 +211,166 @@ program
 
 /** web 命令：启动 Web 管理界面 */
 program
+  .command('wx-login')
+  .description('微信公众平台扫码登录，保存 token/cookie')
+  .option('-o, --output <path>', '二维码图片保存路径')
+  .action(async (options: { output?: string }) => {
+    ensureDirectories();
+    const session = await loginWechatPlatform({ qrcodePath: options.output });
+    console.log('\n微信公众平台登录完成');
+    console.log(`Token: ${session.token}`);
+    console.log(`过期时间: ${session.expiresAt || '-'}`);
+    if (session.account?.name) console.log(`账号: ${session.account.name}`);
+    console.log(`会话文件: ${getWechatSessionFile()}`);
+  });
+
+program
+  .command('wx-status')
+  .description('查看或清除微信公众平台登录状态')
+  .option('--clear', '清除已保存的微信公众平台会话')
+  .action((options: { clear?: boolean }) => {
+    ensureDirectories();
+    if (options.clear) {
+      removeWechatSession();
+      console.log('已清除微信公众平台会话');
+      return;
+    }
+
+    const session = loadWechatSession();
+    if (!session) {
+      console.log('未登录。请先运行 wx-login');
+      return;
+    }
+
+    console.log('已保存微信公众平台会话');
+    console.log(`Token: ${session.token}`);
+    console.log(`更新时间: ${session.updatedAt}`);
+    console.log(`过期时间: ${session.expiresAt || '-'}`);
+    if (session.account?.name) console.log(`账号: ${session.account.name}`);
+  });
+
+program
+  .command('wx-search')
+  .description('搜索可订阅的微信公众号')
+  .argument('<keyword>', '公众号名称或关键词')
+  .option('-n, --limit <number>', '返回数量', '5')
+  .action(async (keyword: string, options: { limit: string }) => {
+    ensureDirectories();
+    const results = await searchWechatBiz(keyword, parseInt(options.limit, 10));
+    if (results.length === 0) {
+      console.log('未找到公众号');
+      return;
+    }
+    results.forEach((item, index) => {
+      console.log(`\n[${index + 1}] ${item.nickname}`);
+      console.log(`  fakeId: ${item.fakeId}`);
+      console.log(`  alias: ${item.alias || '-'}`);
+      console.log(`  signature: ${item.signature || '-'}`);
+    });
+  });
+
+program
+  .command('wx-subscribe')
+  .description('订阅微信公众号；可传 fakeId，或用 --search 取搜索结果第一条')
+  .argument('[fake_id]', '微信公众号 fakeId')
+  .option('-s, --search <keyword>', '搜索公众号并订阅第一条结果')
+  .option('-n, --name <name>', '公众号名称（传 fakeId 时使用）')
+  .action(async (fakeId: string | undefined, options: { search?: string; name?: string }) => {
+    ensureDirectories();
+    let subscriptionInput;
+
+    if (options.search) {
+      const [first] = await searchWechatBiz(options.search, 1);
+      if (!first) throw new Error(`未找到公众号: ${options.search}`);
+      subscriptionInput = {
+        fakeId: first.fakeId,
+        nickname: first.nickname,
+        alias: first.alias,
+        roundHeadImg: first.roundHeadImg,
+        serviceType: first.serviceType,
+        signature: first.signature,
+      };
+    } else {
+      if (!fakeId) throw new Error('请提供 fakeId，或使用 --search <keyword>');
+      subscriptionInput = {
+        fakeId,
+        nickname: options.name || fakeId,
+      };
+    }
+
+    const saved = upsertWechatSubscription(subscriptionInput);
+    console.log(`已订阅: ${saved.nickname}`);
+    console.log(`fakeId: ${saved.fakeId}`);
+  });
+
+program
+  .command('wx-subscriptions')
+  .description('列出或删除微信公众号订阅')
+  .option('-d, --delete <fake_id>', '删除指定 fakeId 的订阅')
+  .action((options: { delete?: string }) => {
+    ensureDirectories();
+    if (options.delete) {
+      const ok = removeWechatSubscription(options.delete);
+      console.log(ok ? `已删除订阅: ${options.delete}` : `未找到订阅: ${options.delete}`);
+      return;
+    }
+
+    const subscriptions = listWechatSubscriptions();
+    if (subscriptions.length === 0) {
+      console.log('暂无订阅');
+      return;
+    }
+    subscriptions.forEach((item) => {
+      console.log(`\n${item.nickname}`);
+      console.log(`  fakeId: ${item.fakeId}`);
+      console.log(`  alias: ${item.alias || '-'}`);
+      console.log(`  updatedAt: ${item.updatedAt}`);
+    });
+  });
+
+program
+  .command('wx-sync')
+  .description('同步已订阅公众号的最新文章，并进入现有处理管线')
+  .option('-f, --fake-id <fake_id>', '只同步指定 fakeId')
+  .option('-n, --count <number>', '每个公众号拉取文章数', '5')
+  .option('--urls-only', '只打印文章 URL，不进入处理管线')
+  .action(async (options: { fakeId?: string; count: string; urlsOnly?: boolean }) => {
+    ensureDirectories();
+    await initDB();
+    try {
+      const subscriptions = listWechatSubscriptions().filter((item) => !options.fakeId || item.fakeId === options.fakeId);
+      if (subscriptions.length === 0) {
+        console.log(options.fakeId ? `未找到订阅: ${options.fakeId}` : '暂无订阅');
+        return;
+      }
+
+      for (const subscription of subscriptions) {
+        console.log(`\n[Wechat] 同步 ${subscription.nickname}`);
+        const articles = await getWechatPublishedArticles(subscription.fakeId, parseInt(options.count, 10));
+        if (articles.length === 0) {
+          console.log('  未获取到文章');
+          continue;
+        }
+
+        for (const article of articles) {
+          console.log(`  - ${article.title}`);
+          console.log(`    ${article.link}`);
+          if (!options.urlsOnly) {
+            try {
+              const docId = await processArticle(article.link);
+              console.log(`    已入库: ${docId}`);
+            } catch (err: any) {
+              console.error(`    处理失败: ${err?.message || String(err)}`);
+            }
+          }
+        }
+      }
+    } finally {
+      closeDB();
+    }
+  });
+
+program
   .command('web')
   .description('启动 Web 管理界面（前端 + API + 定时任务）')
   .option('-p, --port <number>', '端口号', '3000')
@@ -210,10 +384,15 @@ program
 /** 初始化并运行 */
 async function main() {
   ensureDirectories();
-  await program.parseAsync(process.argv);
+  try {
+    await program.parseAsync(process.argv);
+  } finally {
+    cleanupRuntimeArtifacts();
+  }
 }
 
 main().catch((err) => {
+  cleanupRuntimeArtifacts();
   console.error('系统错误:', err);
   process.exit(1);
 });

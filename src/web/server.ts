@@ -16,9 +16,39 @@ import {
   CrawlProgressEvent,
 } from './tasks';
 import { loadPrompts, savePrompt, resetPrompt } from '../agents/prompts';
+import {
+  getWechatPublishedArticles,
+  listWechatSubscriptions,
+  loadWechatSession,
+  loginWechatPlatform,
+  removeWechatSession,
+  removeWechatSubscription,
+  searchWechatBiz,
+  upsertWechatSubscription,
+} from '../wechat-platform';
+import { processArticle } from '../scheduler';
+import { config } from '../config';
+import { initDB } from '../storage';
+import { cleanupRuntimeArtifacts } from '../runtime/cleanup';
+import * as fs from 'fs';
 
 const app = express();
 const PORT = process.env.WEB_PORT ? parseInt(process.env.WEB_PORT) : 3000;
+const WECHAT_QRCODE_PATH = path.join(config.knowledgeBasePath, 'wechat_qrcode.png');
+let wechatLoginState: {
+  running: boolean;
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+} = { running: false, error: null, startedAt: null, finishedAt: null };
+
+function normalizeWechatLoginError(err: any): string {
+  const message = err?.message || String(err);
+  if (/timeout|timed out|Timeout/i.test(message)) return '登录超时';
+  if (/qrcode|二维码/i.test(message)) return '二维码生成失败';
+  if (/playwright/i.test(message)) return '浏览器自动化环境不可用';
+  return '登录失败';
+}
 
 app.use(cors());
 app.use(express.json());
@@ -128,6 +158,130 @@ app.get('/api/crawl/progress/:sessionId', (req, res) => {
 // ===== Prompt 管理 API =====
 
 /** 获取所有 Agent Prompt */
+app.get('/api/wechat/status', (_req, res) => {
+  const session = loadWechatSession();
+  const qrcodeExists = fs.existsSync(WECHAT_QRCODE_PATH) && fs.statSync(WECHAT_QRCODE_PATH).size > 0;
+  res.json({
+    loggedIn: !!session,
+    session: session
+      ? {
+          token: session.token,
+          updatedAt: session.updatedAt,
+          expiresAt: session.expiresAt,
+          account: session.account,
+        }
+      : null,
+    qrcodeExists,
+    login: wechatLoginState,
+  });
+});
+
+app.post('/api/wechat/login', (_req, res) => {
+  if (wechatLoginState.running) {
+    res.json({ started: false, login: wechatLoginState });
+    return;
+  }
+
+  try {
+    removeWechatSession();
+    if (fs.existsSync(WECHAT_QRCODE_PATH)) fs.unlinkSync(WECHAT_QRCODE_PATH);
+  } catch {}
+
+  wechatLoginState = {
+    running: true,
+    error: null,
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+  };
+
+  loginWechatPlatform({ qrcodePath: WECHAT_QRCODE_PATH })
+    .then(() => {
+      wechatLoginState = { ...wechatLoginState, running: false, finishedAt: new Date().toISOString() };
+    })
+    .catch((err: any) => {
+      wechatLoginState = {
+        ...wechatLoginState,
+        running: false,
+        error: normalizeWechatLoginError(err),
+        finishedAt: new Date().toISOString(),
+      };
+    });
+
+  res.json({ started: true, login: wechatLoginState });
+});
+
+app.get('/api/wechat/qrcode', (_req, res) => {
+  if (!fs.existsSync(WECHAT_QRCODE_PATH) || fs.statSync(WECHAT_QRCODE_PATH).size === 0) {
+    res.status(404).json({ error: '二维码尚未生成' });
+    return;
+  }
+  res.sendFile(WECHAT_QRCODE_PATH);
+});
+
+app.get('/api/wechat/search', async (req, res) => {
+  try {
+    const keyword = String(req.query.q || '').trim();
+    const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 5;
+    if (!keyword) return res.status(400).json({ error: 'q 必填' });
+    const results = await searchWechatBiz(keyword, limit);
+    res.json({ results });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
+});
+
+app.get('/api/wechat/subscriptions', (_req, res) => {
+  res.json({ subscriptions: listWechatSubscriptions() });
+});
+
+app.post('/api/wechat/subscriptions', (req, res) => {
+  try {
+    const { fakeId, nickname, alias, roundHeadImg, serviceType, signature } = req.body;
+    if (!fakeId || !nickname) return res.status(400).json({ error: 'fakeId 和 nickname 必填' });
+    const subscription = upsertWechatSubscription({ fakeId, nickname, alias, roundHeadImg, serviceType, signature });
+    res.status(201).json({ subscription });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
+});
+
+app.delete('/api/wechat/subscriptions/:fakeId', (req, res) => {
+  const ok = removeWechatSubscription(req.params.fakeId);
+  if (!ok) return res.status(404).json({ error: '订阅不存在' });
+  res.json({ success: true });
+});
+
+app.post('/api/wechat/sync', async (req, res) => {
+  try {
+    const { fakeId, count = 5, urlsOnly = false } = req.body;
+    const subscriptions = listWechatSubscriptions().filter((item) => !fakeId || item.fakeId === fakeId);
+    const synced: any[] = [];
+
+    if (!urlsOnly) {
+      await initDB();
+    }
+
+    for (const subscription of subscriptions) {
+      const articles = await getWechatPublishedArticles(subscription.fakeId, Number(count));
+      for (const article of articles) {
+        const item: any = { subscription: subscription.nickname, title: article.title, url: article.link };
+        if (!urlsOnly) {
+          try {
+            item.docId = await processArticle(article.link);
+          } catch (err: any) {
+            item.error = err?.message || String(err);
+          }
+        }
+        synced.push(item);
+      }
+    }
+
+    res.json({ synced });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
+});
+
 app.get('/api/prompts', (_req, res) => {
   res.json({ prompts: loadPrompts() });
 });
@@ -184,6 +338,7 @@ export async function startWebServer(): Promise<void> {
   const cleanup = () => {
     console.log('\n[Web] 正在关闭...');
     shutdownTaskManager();
+    cleanupRuntimeArtifacts();
     server.close(() => process.exit(0));
   };
 
