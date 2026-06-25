@@ -7,6 +7,14 @@ knowledge_base/raw/
 knowledge_base/markdown/
 knowledge_base/images/
 knowledge_base/evolution/
+knowledge_base/reports/
+knowledge_base/execution_history.json
+knowledge_base/index.json
+knowledge_base/scheduled_tasks.json
+knowledge_base/wechat_platform_session.json
+knowledge_base/wechat_qrcode.png
+knowledge_base/wechat_subscriptions.json
+knowledge_base/web.*.log
 *.log
 .DS_Store
 Thumbs.db
