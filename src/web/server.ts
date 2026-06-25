@@ -12,7 +12,10 @@ import {
   crawlNow,
   getHistory,
   shutdownTaskManager,
+  crawlEvents,
+  CrawlProgressEvent,
 } from './tasks';
+import { loadPrompts, savePrompt, resetPrompt } from '../agents/prompts';
 
 const app = express();
 const PORT = process.env.WEB_PORT ? parseInt(process.env.WEB_PORT) : 3000;
@@ -85,8 +88,66 @@ app.post('/api/crawl', (req, res) => {
     return res.status(400).json({ error: '请提供至少一个 URL' });
   }
 
-  crawlNow(urls);
-  res.json({ message: `已开始爬取 ${urls.length} 个链接`, urls });
+  const sessionId = crawlNow(urls);
+  res.json({ message: `已开始爬取 ${urls.length} 个链接`, sessionId, urls });
+});
+
+/** SSE 进度流 */
+app.get('/api/crawl/progress/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const send = (data: object) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  send({ type: 'connected', sessionId });
+
+  const handler = (event: CrawlProgressEvent) => {
+    if (event.sessionId !== sessionId) return;
+    send({ type: 'progress', ...event });
+    if (event.step === 'done' || event.step === 'error') {
+      crawlEvents.off('progress', handler);
+      res.end();
+    }
+  };
+
+  crawlEvents.on('progress', handler);
+
+  // 客户端断开时清理
+  req.on('close', () => {
+    crawlEvents.off('progress', handler);
+  });
+});
+
+// ===== Prompt 管理 API =====
+
+/** 获取所有 Agent Prompt */
+app.get('/api/prompts', (_req, res) => {
+  res.json({ prompts: loadPrompts() });
+});
+
+/** 保存单个 Agent Prompt */
+app.put('/api/prompts/:id', (req, res) => {
+  const { systemPrompt } = req.body;
+  if (!systemPrompt || typeof systemPrompt !== 'string') {
+    return res.status(400).json({ error: 'systemPrompt 必填' });
+  }
+  const ok = savePrompt(req.params.id, systemPrompt);
+  if (!ok) return res.status(404).json({ error: 'Agent 不存在' });
+  res.json({ success: true, prompts: loadPrompts() });
+});
+
+/** 还原 Prompt 为默认值 */
+app.post('/api/prompts/:id/reset', (req, res) => {
+  const ok = resetPrompt(req.params.id);
+  if (!ok) return res.status(404).json({ error: 'Agent 不存在' });
+  res.json({ success: true, prompts: loadPrompts() });
 });
 
 /** 获取执行历史 */

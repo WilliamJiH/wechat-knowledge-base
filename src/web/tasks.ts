@@ -1,9 +1,24 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
 import { processArticle } from '../scheduler';
 import { initDB, closeDB } from '../storage/db';
+
+/** 爬取进度事件发射器（用于 SSE） */
+export const crawlEvents = new EventEmitter();
+
+/** 进度事件类型 */
+export interface CrawlProgressEvent {
+  sessionId: string;
+  url: string;
+  step: 'crawl' | 'parse' | 'index' | 'analyst' | 'critic' | 'strategist' | 'evolve' | 'done' | 'error';
+  message: string;
+  docId?: string;
+  reportPath?: string;
+  error?: string;
+}
 
 /** 定时任务配置 */
 export interface ScheduledTask {
@@ -132,12 +147,102 @@ async function executeTask(task: ScheduledTask): Promise<void> {
   }
 }
 
+/** 带进度事件的执行（用于 SSE 场景） */
+async function executeTaskWithProgress(task: ScheduledTask, sessionId: string): Promise<void> {
+  const emit = (
+    url: string,
+    step: CrawlProgressEvent['step'],
+    message: string,
+    extra?: Partial<CrawlProgressEvent>
+  ) => {
+    const event: CrawlProgressEvent = { sessionId, url, step, message, ...extra };
+    crawlEvents.emit('progress', event);
+  };
+
+  await initDB();
+
+  for (const url of task.urls) {
+    const recordId = uuidv4();
+    const record: ExecutionRecord = {
+      id: recordId,
+      taskId: task.id,
+      url,
+      status: 'running',
+      startedAt: new Date().toISOString(),
+    };
+    addHistoryRecord(record);
+
+    try {
+      emit(url, 'crawl', '正在爬取文章...');
+      const { crawlWechatArticle } = await import('../crawler');
+      const { parseAndSave } = await import('../parser');
+      const { indexArticle } = await import('../embedding');
+      const { runAgentPipeline } = await import('../agents');
+      const { generateEvolution } = await import('../evolution');
+      const { isFeishuConfigured, createFeishuDoc } = await import('../feishu');
+      const fsModule = await import('fs');
+
+      const crawlResult = await crawlWechatArticle(url);
+
+      emit(url, 'parse', `正在解析转换：${crawlResult.title}`);
+      const mdPath = await parseAndSave(crawlResult);
+      const markdown = fsModule.readFileSync(mdPath, 'utf-8');
+
+      if (isFeishuConfigured()) {
+        try { await createFeishuDoc(crawlResult.doc_id, crawlResult.title, markdown); } catch {}
+      }
+
+      emit(url, 'index', '正在向量化索引...');
+      await indexArticle(crawlResult.doc_id, markdown);
+
+      emit(url, 'analyst', 'Analyst 正在分析观点...');
+      const pipelineResult = await runAgentPipeline(crawlResult.doc_id, (step: string, msg: string) => {
+        emit(url, step as CrawlProgressEvent['step'], msg);
+      });
+
+      emit(url, 'evolve', '正在生成演化链...');
+      await generateEvolution(crawlResult.doc_id, pipelineResult.analysis.claims);
+
+      updateHistoryRecord(recordId, {
+        status: 'success',
+        finishedAt: new Date().toISOString(),
+        docId: crawlResult.doc_id,
+      });
+
+      emit(url, 'done', `完成！`, {
+        docId: crawlResult.doc_id,
+        reportPath: pipelineResult.reportPath,
+      });
+      console.log(`[TaskManager] 成功: ${url} → ${crawlResult.doc_id}`);
+    } catch (err: any) {
+      updateHistoryRecord(recordId, {
+        status: 'failed',
+        error: err?.message || String(err),
+        finishedAt: new Date().toISOString(),
+      });
+      emit(url, 'error', err?.message || String(err), { error: err?.message });
+      console.error(`[TaskManager] 失败: ${url}`, err?.message);
+    }
+  }
+
+  const tasks2 = loadTasks();
+  const idx2 = tasks2.findIndex((t) => t.id === task.id);
+  if (idx2 >= 0) {
+    tasks2[idx2].lastRunAt = new Date().toISOString();
+    if (tasks2[idx2].enabled) {
+      const next = new Date();
+      next.setHours(next.getHours() + tasks2[idx2].intervalHours);
+      tasks2[idx2].nextRunAt = next.toISOString();
+    }
+    saveTasks(tasks2);
+  }
+}
+
 // ===== 定时器管理 =====
 
 function startTimer(task: ScheduledTask): void {
   // 清除旧定时器
   stopTimer(task.id);
-
   if (!task.enabled || task.urls.length === 0) return;
 
   const intervalMs = task.intervalHours * 60 * 60 * 1000;
