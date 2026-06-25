@@ -71,22 +71,60 @@ username: root
 password: 123456
 ```
 
-首次登录后必须修改密码。新密码必须至少 8 位，且只能由大小写英文字母和数字组成，并同时包含大写字母、小写字母和数字。
+首次登录后必须修改密码。新密码必须至少 8 位，只能由大小写英文字母和数字组成，并同时包含大写字母、小写字母和数字。
 
 ## Docker 部署
 
 项目提供 `Dockerfile` 和 `docker-compose.yml`。镜像基于 Playwright 官方 Node 镜像，包含 Chromium 运行环境。
 
+### Docker 直接运行
+
+Linux / macOS:
+
+```bash
+docker run -d \
+  --name wechat-knowledge-base \
+  --env-file .env \
+  -p 3000:3000 \
+  -v "$(pwd)/knowledge_base:/data/knowledge_base" \
+  williamjih/wechat-knowledge-base:latest
+```
+
+Windows PowerShell:
+
+```powershell
+docker run -d `
+  --name wechat-knowledge-base `
+  --env-file .env `
+  -p 3000:3000 `
+  -v "${PWD}\knowledge_base:/data/knowledge_base" `
+  williamjih/wechat-knowledge-base:latest
+```
+
+### Docker Compose
+
+使用仓库中的 `docker-compose.yml`：
+
+```bash
+docker compose up -d
+```
+
+默认镜像：
+
+```text
+williamjih/wechat-knowledge-base:latest
+```
+
+如需指定版本：
+
+```bash
+IMAGE=williamjih/wechat-knowledge-base:v1.0.0 docker compose up -d
+```
+
 ### 本地构建
 
 ```bash
 docker compose up -d --build
-```
-
-### 使用 Docker Hub 镜像
-
-```bash
-IMAGE=<dockerhub-namespace>/wechat-knowledge-base:latest docker compose up -d
 ```
 
 ### 访问
@@ -95,9 +133,15 @@ IMAGE=<dockerhub-namespace>/wechat-knowledge-base:latest docker compose up -d
 http://localhost:3000
 ```
 
-### 数据挂载
+### Docker Hub
 
-默认挂载：
+镜像地址：
+
+```text
+https://hub.docker.com/repository/docker/williamjih/wechat-knowledge-base
+```
+
+数据默认挂载：
 
 ```text
 ./knowledge_base:/data/knowledge_base
@@ -111,8 +155,6 @@ DB_PATH=/data/knowledge_base/db/knowledge.db
 ```
 
 ## 环境变量
-
-常用环境变量：
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
@@ -166,47 +208,23 @@ DB_PATH=/data/knowledge_base/db/knowledge.db
 ### 常规命令
 
 ```bash
-# 采集单篇文章
 npx ts-node src/index.ts crawl "https://mp.weixin.qq.com/s/xxxxx"
-
-# 完整处理管线
 npx ts-node src/index.ts pipeline "https://mp.weixin.qq.com/s/xxxxx"
-
-# 分析已采集文章
 npx ts-node src/index.ts analyze <doc_id>
-
-# 生成观点演化链
 npx ts-node src/index.ts evolve <doc_id>
-
-# 语义检索
 npx ts-node src/index.ts search "关键词"
-
-# 列出文章
 npx ts-node src/index.ts list
 ```
 
 ### 微信公众平台命令
 
 ```bash
-# 扫码登录
 npm run wx:login
-
-# 查看登录状态
 npm run wx:status
-
-# 搜索公众号
 npm run wx:search -- "公众号名称"
-
-# 订阅搜索结果第一条
 npx ts-node src/index.ts wx-subscribe --search "公众号名称"
-
-# 查看订阅列表
 npx ts-node src/index.ts wx-subscriptions
-
-# 只打印订阅文章 URL
 npm run wx:sync -- --urls-only
-
-# 同步订阅文章并入库
 npm run wx:sync -- -n 5
 ```
 
@@ -222,13 +240,15 @@ npm run wx:sync -- -n 5
 |------|------|------|
 | Secret | `DOCKERHUB_USERNAME` | Docker Hub 用户名或组织名 |
 | Secret | `DOCKERHUB_TOKEN` | Docker Hub Access Token |
-| Variable | `DOCKERHUB_IMAGE` | 可选，完整镜像名，例如 `myorg/wechat-knowledge-base` |
+| Variable | `DOCKERHUB_IMAGE` | 可选，完整镜像名；本项目使用 `williamjih/wechat-knowledge-base` |
 
-如果未配置 `DOCKERHUB_IMAGE`，默认镜像名为：
+建议将 `DOCKERHUB_IMAGE` 设置为：
 
 ```text
-<DOCKERHUB_USERNAME>/wechat-knowledge-base
+williamjih/wechat-knowledge-base
 ```
+
+发布示例：
 
 ```bash
 git tag v1.0.0
@@ -243,17 +263,17 @@ Workflow 会分别构建：
 并推送架构标签：
 
 ```text
-<dockerhub-namespace>/wechat-knowledge-base:v1.0.0-amd64
-<dockerhub-namespace>/wechat-knowledge-base:v1.0.0-arm64
-<dockerhub-namespace>/wechat-knowledge-base:latest-amd64
-<dockerhub-namespace>/wechat-knowledge-base:latest-arm64
+williamjih/wechat-knowledge-base:v1.0.0-amd64
+williamjih/wechat-knowledge-base:v1.0.0-arm64
+williamjih/wechat-knowledge-base:latest-amd64
+williamjih/wechat-knowledge-base:latest-arm64
 ```
 
 随后创建 multi-arch manifest：
 
 ```text
-<dockerhub-namespace>/wechat-knowledge-base:v1.0.0
-<dockerhub-namespace>/wechat-knowledge-base:latest
+williamjih/wechat-knowledge-base:v1.0.0
+williamjih/wechat-knowledge-base:latest
 ```
 
 用户拉取 `latest` 或版本 tag 时，Docker 会按宿主机架构自动选择镜像。
@@ -289,8 +309,6 @@ checksums.txt
 ## 运行时数据
 
 `knowledge_base/` 是运行时数据目录，不应提交到 Git。
-
-常见运行时文件：
 
 | 路径 | 说明 |
 |------|------|
