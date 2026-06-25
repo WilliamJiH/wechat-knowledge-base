@@ -9,7 +9,15 @@ export const config = {
     apiKey: process.env.DEEPSEEK_API_KEY || '',
     baseUrl: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
     model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
-    embeddingModel: process.env.DEEPSEEK_EMBEDDING_MODEL || 'deepseek-chat',
+  },
+
+  // Embedding 服务（默认不启用，需独立配置 API Key）
+  // 推荐: 硬基流动 https://siliconflow.cn 或 OpenAI text-embedding-3-small
+  embedding: {
+    apiKey: process.env.EMBEDDING_API_KEY || process.env.DEEPSEEK_API_KEY || '',
+    baseUrl: process.env.EMBEDDING_BASE_URL || 'https://api.siliconflow.cn/v1',
+    model: process.env.EMBEDDING_MODEL || 'BAAI/bge-m3',
+    enabled: !!(process.env.EMBEDDING_API_KEY || process.env.EMBEDDING_BASE_URL),
   },
 
   // 知识库路径
