@@ -8,10 +8,19 @@ let localIndex: LocalIndex | null = null;
 /** 获取 Embedding 模型实例 */
 export function getEmbeddingsModel(): OpenAIEmbeddings {
   if (!embeddingsModel) {
+    const { apiKey, baseUrl, model } = config.embedding;
+    if (!apiKey) {
+      throw new Error(
+        '[Embedding] 未配置 Embedding API Key。\n' +
+        '请在 .env 中添加 EMBEDDING_API_KEY=<你的key>\n' +
+        '推荐使用硬基流动(siliconflow.cn)或 OpenAI。\n' +
+        '详情见 .env.example'
+      );
+    }
     embeddingsModel = new OpenAIEmbeddings({
-      apiKey: config.deepseek.apiKey,
-      model: 'text-embedding-3-small', // DeepSeek 暂无专用 embedding 模型，使用兼容接口
-      endpoint: `${config.deepseek.baseUrl}/v1`,
+      apiKey,
+      model,
+      endpoint: baseUrl,
     });
   }
   return embeddingsModel;

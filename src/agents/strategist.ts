@@ -1,6 +1,7 @@
 import { chatCompletionJSON } from './llm';
 import { AnalysisResult } from './analyst';
 import { CritiqueResult } from './critic';
+import { getPrompt } from './prompts';
 
 /** 策略建议 */
 export interface StrategyResult {
@@ -40,7 +41,7 @@ export async function strategize(
 
   const result = await chatCompletionJSON<StrategyResult>(
     [
-      { role: 'system', content: STRATEGIST_SYSTEM_PROMPT },
+      { role: 'system', content: getPrompt('strategist') },
       {
         role: 'user',
         content: `请综合以下分析结果，给出知识整合建议：

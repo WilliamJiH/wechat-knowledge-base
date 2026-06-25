@@ -1,5 +1,6 @@
 import { chatCompletionJSON } from './llm';
 import { AnalysisResult } from './analyst';
+import { getPrompt } from './prompts';
 
 /** 评论结果 */
 export interface CritiqueResult {
@@ -39,7 +40,7 @@ export async function critiqueAnalysis(
 
   const result = await chatCompletionJSON<CritiqueResult>(
     [
-      { role: 'system', content: CRITIC_SYSTEM_PROMPT },
+      { role: 'system', content: getPrompt('critic') },
       {
         role: 'user',
         content: `请对以下文章的分析结果进行批判性评估：

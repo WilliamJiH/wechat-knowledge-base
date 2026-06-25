@@ -8,27 +8,31 @@
   },
   "scripts": {
     "build": "tsc",
-    "start": "ts-node src/index.ts",
+    "start": "ts-node src/index.ts web",
+    "dev": "ts-node src/index.ts web",
     "crawl": "ts-node src/index.ts crawl",
     "analyze": "ts-node src/index.ts analyze",
     "evolve": "ts-node src/index.ts evolve",
-    "dev": "ts-node src/index.ts"
+    "web": "ts-node src/index.ts web"
   },
   "dependencies": {
     "axios": "^1.7.0",
-    "sql.js": "^1.10.0",
     "cheerio": "^1.0.0",
     "commander": "^12.1.0",
+    "cors": "^2.8.6",
     "dotenv": "^16.4.0",
+    "express": "^5.2.1",
     "node-cron": "^3.0.3",
     "openai": "^4.50.0",
     "rss-parser": "^3.13.0",
+    "sql.js": "^1.10.0",
     "turndown": "^7.2.0",
     "uuid": "^10.0.0",
     "vectra": "^0.15.0"
   },
   "devDependencies": {
-
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^20.14.0",
     "@types/node-cron": "^3.0.11",
     "@types/turndown": "^5.0.5",

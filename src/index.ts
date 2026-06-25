@@ -195,6 +195,18 @@ program
     }
   });
 
+/** web 命令：启动 Web 管理界面 */
+program
+  .command('web')
+  .description('启动 Web 管理界面（前端 + API + 定时任务）')
+  .option('-p, --port <number>', '端口号', '3000')
+  .action(async (options: { port: string }) => {
+    ensureDirectories();
+    process.env.WEB_PORT = options.port;
+    const { startWebServer } = await import('./web/server');
+    await startWebServer();
+  });
+
 /** 初始化并运行 */
 async function main() {
   ensureDirectories();

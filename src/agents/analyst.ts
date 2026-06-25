@@ -1,4 +1,5 @@
 import { chatCompletionJSON } from './llm';
+import { getPrompt } from './prompts';
 
 /** 分析结果 */
 export interface AnalysisResult {
@@ -32,7 +33,7 @@ export async function analyzeArticle(markdown: string, title: string): Promise<A
 
   const result = await chatCompletionJSON<AnalysisResult>(
     [
-      { role: 'system', content: ANALYST_SYSTEM_PROMPT },
+      { role: 'system', content: getPrompt('analyst') },
       {
         role: 'user',
         content: `请分析以下文章：\n\n标题：${title}\n\n内容：\n${markdown.slice(0, 8000)}`,
