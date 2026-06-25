@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { config } from '../config';
+import { recordLLMUsage } from '../usage/llm';
 
 let client: OpenAI | null = null;
 
@@ -25,6 +26,16 @@ export async function chatCompletion(
 ): Promise<string> {
   const llm = getLLMClient();
   const model = options?.model || config.deepseek.model;
+  const trackUsage = (response: any) => {
+    const usage = response?.usage;
+    if (!usage) return;
+    recordLLMUsage({
+      model,
+      promptTokens: usage.prompt_tokens || 0,
+      completionTokens: usage.completion_tokens || 0,
+      totalTokens: usage.total_tokens || 0,
+    });
+  };
 
   try {
     const response = await llm.chat.completions.create({
@@ -34,6 +45,7 @@ export async function chatCompletion(
       max_tokens: options?.maxTokens ?? 4096,
     });
 
+    trackUsage(response);
     return response.choices[0]?.message?.content || '';
   } catch (err: any) {
     // 重试一次
@@ -46,6 +58,7 @@ export async function chatCompletion(
         temperature: options?.temperature ?? 0.7,
         max_tokens: options?.maxTokens ?? 4096,
       });
+      trackUsage(response);
       return response.choices[0]?.message?.content || '';
     }
     throw err;

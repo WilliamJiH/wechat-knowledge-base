@@ -50,9 +50,34 @@
   <nav class="flex">
     <button onclick="showTab('wechat')" id="tab-wechat" class="tab-btn px-4 py-2.5 text-sm text-gray-500 tab-active">微信订阅</button>
     <button onclick="showTab('history')" id="tab-history" class="tab-btn px-4 py-2.5 text-sm text-gray-500">执行历史</button>
+    <button onclick="showTab('usage')" id="tab-usage" class="tab-btn px-4 py-2.5 text-sm text-gray-500">用量</button>
     <button onclick="showTab('prompts')" id="tab-prompts" class="tab-btn px-4 py-2.5 text-sm text-gray-500">提示词</button>
   </nav>
 </header>
+
+<div id="authOverlay" class="fixed inset-0 z-50 hidden bg-gray-950/60">
+  <div class="min-h-screen flex items-center justify-center px-4">
+    <div class="w-full max-w-sm bg-white rounded-xl shadow-xl border p-6">
+      <h2 id="authTitle" class="text-lg font-semibold text-gray-900 mb-1">登录</h2>
+      <p id="authHint" class="text-sm text-gray-500 mb-5">请输入管理员账号和密码。</p>
+
+      <div id="loginForm" class="space-y-3">
+        <input id="loginUsername" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="用户名" value="root" />
+        <input id="loginPassword" type="password" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="密码" />
+        <button onclick="submitLogin()" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition">登录</button>
+      </div>
+
+      <div id="passwordForm" class="hidden space-y-3">
+        <input id="oldPassword" type="password" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="原密码" />
+        <input id="newPassword" type="password" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="新密码（至少 8 位，含大小写字母和数字）" />
+        <input id="confirmPassword" type="password" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none" placeholder="确认新密码" />
+        <button onclick="submitPasswordChange()" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition">修改密码</button>
+      </div>
+
+      <p id="authError" class="text-sm text-red-500 mt-3 min-h-5"></p>
+    </div>
+  </div>
+</div>
 
 <main class="w-full max-w-[1500px] mx-auto px-6 py-6 space-y-4">
 
@@ -162,6 +187,18 @@
 </section>
 
   <!-- ===== Agent Prompts ===== -->
+  <section id="pane-usage" class="hidden">
+    <div class="bg-white rounded-xl shadow-sm border p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-semibold">AI Token 用量</h2>
+        <button onclick="loadUsage()" class="text-xs text-blue-500 hover:underline">刷新</button>
+      </div>
+      <div id="usageSummary" class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5"></div>
+      <div id="usageList" class="space-y-2 text-sm text-gray-400 max-h-[60vh] overflow-y-auto pr-1">加载中...</div>
+    </div>
+  </section>
+
+  <!-- ===== Agent Prompts ===== -->
   <section id="pane-prompts" class="hidden">
     <div class="bg-white rounded-xl shadow-sm border p-6">
       <h2 class="text-base font-semibold mb-1"> Agent Prompt 管理</h2>
@@ -175,7 +212,8 @@
 <script>
 // =================== 全局 ===================
 const API = '';
-const TABS = ['wechat','history','prompts'];
+const TABS = ['wechat','history','usage','prompts'];
+let authState = { authenticated: false, mustChangePassword: false };
 
 function showTab(tab) {
   TABS.forEach(t => {
@@ -185,6 +223,7 @@ function showTab(tab) {
     btn.classList.toggle('text-gray-500', t !== tab);
   });
   if (tab === 'history') loadHistory();
+  if (tab === 'usage')   loadUsage();
   if (tab === 'wechat')  loadWechatPanel();
   if (tab === 'prompts') loadPrompts();
 }
@@ -192,16 +231,108 @@ function showTab(tab) {
 async function apiFetch(path, opts = {}) {
   const res = await fetch(API + path, {
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
     ...opts,
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
   const data = await res.json();
+  if (res.status === 401) showAuth('login');
+  if (res.status === 403 && data.mustChangePassword) showAuth('password');
   if (!res.ok) throw new Error(data.error || '请求失败');
   return data;
 }
 
 function escapeHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// =================== 登录 ===================
+function showAuth(mode) {
+  document.getElementById('authOverlay').classList.remove('hidden');
+  document.querySelector('header').classList.add('blur-sm', 'pointer-events-none', 'select-none');
+  document.querySelector('main').classList.add('blur-sm', 'pointer-events-none', 'select-none');
+  document.getElementById('authError').textContent = '';
+  const isPassword = mode === 'password';
+  document.getElementById('loginForm').classList.toggle('hidden', isPassword);
+  document.getElementById('passwordForm').classList.toggle('hidden', !isPassword);
+  document.getElementById('authTitle').textContent = isPassword ? '首次登录需要修改密码' : '登录';
+  document.getElementById('authHint').textContent = isPassword ? '默认密码只能用于首次登录，请设置新密码。' : '请输入管理员账号和密码。';
+  if (isPassword) document.getElementById('oldPassword').value = document.getElementById('loginPassword').value || '';
+}
+
+function hideAuth() {
+  document.getElementById('authOverlay').classList.add('hidden');
+  document.querySelector('header').classList.remove('blur-sm', 'pointer-events-none', 'select-none');
+  document.querySelector('main').classList.remove('blur-sm', 'pointer-events-none', 'select-none');
+  document.getElementById('authError').textContent = '';
+}
+
+function validateNewPassword(password) {
+  if (password.length < 8) return '新密码至少 8 位';
+  if (!/[a-z]/.test(password)) return '新密码必须包含小写字母';
+  if (!/[A-Z]/.test(password)) return '新密码必须包含大写字母';
+  if (!/[0-9]/.test(password)) return '新密码必须包含数字';
+  if (!/^[A-Za-z0-9]+$/.test(password)) return '新密码只能包含大小写字母和数字';
+  return '';
+}
+
+async function refreshAuth() {
+  const data = await apiFetch('/api/auth/status');
+  authState = data;
+  if (!data.authenticated) {
+    showAuth('login');
+    return false;
+  }
+  if (data.mustChangePassword) {
+    showAuth('password');
+    return false;
+  }
+  hideAuth();
+  return true;
+}
+
+async function submitLogin() {
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  try {
+    const data = await apiFetch('/api/auth/login', { method: 'POST', body: { username, password } });
+    authState = data;
+    if (data.mustChangePassword) {
+      showAuth('password');
+      return;
+    }
+    hideAuth();
+    await initApp();
+  } catch (e) {
+    document.getElementById('authError').textContent = e.message;
+  }
+}
+
+async function submitPasswordChange() {
+  const oldPassword = document.getElementById('oldPassword').value;
+  const newPassword = document.getElementById('newPassword').value;
+  const confirmPassword = document.getElementById('confirmPassword').value;
+  const passwordError = validateNewPassword(newPassword);
+  if (passwordError) {
+    document.getElementById('authError').textContent = passwordError;
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    document.getElementById('authError').textContent = '两次输入的新密码不一致';
+    return;
+  }
+  try {
+    await apiFetch('/api/auth/change-password', { method: 'POST', body: { oldPassword, newPassword } });
+    hideAuth();
+    await initApp();
+  } catch (e) {
+    document.getElementById('authError').textContent = e.message;
+  }
+}
+
+async function initApp() {
+  checkHealth();
+  loadWechatPanel();
 }
 
 // =================== 健康检查 ===================
@@ -217,7 +348,7 @@ async function checkHealth() {
     badge.className = 'text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600';
   }
 }
-checkHealth();
+refreshAuth().then(ok => { if (ok) initApp(); });
 setInterval(checkHealth, 30000);
 
 // =================== 快速爬取 + SSE 进度 ===================
@@ -460,6 +591,52 @@ async function loadHistory() {
   } catch (e) { el.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`; }
 }
 setInterval(loadHistory, 15000);
+
+// =================== 用量 ===================
+function usageCard(label, value) {
+  return `
+    <div class="border rounded-lg p-4 bg-gray-50">
+      <p class="text-xs text-gray-500 mb-1">${label}</p>
+      <p class="text-2xl font-semibold text-gray-900">${Number(value || 0).toLocaleString('zh-CN')}</p>
+    </div>
+  `;
+}
+
+async function loadUsage() {
+  const summary = document.getElementById('usageSummary');
+  const list = document.getElementById('usageList');
+  try {
+    const { totals, records } = await apiFetch('/api/usage/llm?limit=100');
+    summary.innerHTML = [
+      usageCard('请求次数', totals.requests),
+      usageCard('输入 Tokens', totals.promptTokens),
+      usageCard('输出 Tokens', totals.completionTokens),
+      usageCard('总 Tokens', totals.totalTokens),
+    ].join('');
+
+    if (!records.length) {
+      list.innerHTML = '<p class="text-gray-400">暂无 AI token 用量记录</p>';
+      return;
+    }
+
+    list.innerHTML = records.map(record => `
+      <div class="border rounded-lg p-3 flex items-center justify-between gap-3 bg-gray-50">
+        <div class="min-w-0">
+          <p class="font-medium text-gray-800">${escapeHtml(record.model)}</p>
+          <p class="text-xs text-gray-400">${new Date(record.createdAt).toLocaleString('zh-CN')}</p>
+        </div>
+        <div class="grid grid-cols-3 gap-4 text-right text-xs shrink-0">
+          <div><p class="text-gray-400">输入</p><p class="font-semibold text-gray-700">${record.promptTokens.toLocaleString('zh-CN')}</p></div>
+          <div><p class="text-gray-400">输出</p><p class="font-semibold text-gray-700">${record.completionTokens.toLocaleString('zh-CN')}</p></div>
+          <div><p class="text-gray-400">总计</p><p class="font-semibold text-gray-900">${record.totalTokens.toLocaleString('zh-CN')}</p></div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    summary.innerHTML = '';
+    list.innerHTML = `<p class="text-red-500">加载失败: ${escapeHtml(e.message)}</p>`;
+  }
+}
 
 // =================== 微信公众平台订阅 ===================
 let wechatStatusTimer = null;
