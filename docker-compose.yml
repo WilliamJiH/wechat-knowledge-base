@@ -1,0 +1,15 @@
+services:
+  wechat-knowledge-base:
+    image: ${IMAGE:-wechat-knowledge-base:local}
+    build:
+      context: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      KNOWLEDGE_BASE_PATH: /data/knowledge_base
+      DB_PATH: /data/knowledge_base/db/knowledge.db
+    volumes:
+      - ./knowledge_base:/data/knowledge_base
+    restart: unless-stopped

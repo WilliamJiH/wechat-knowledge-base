@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason"
+        required: false
+  push:
+    tags:
+      - "v*"
+      - "!*-alpha*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build release assets
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        shell: bash
+        run: |
+          VERSION="$(git describe --tags --always)"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "PACKAGE_NAME=wechat-knowledge-base-${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: |
+          npm run build
+          mkdir -p "dist/src/web"
+          cp -r "src/web/public" "dist/src/web/public"
+
+      - name: Create release package
+        shell: bash
+        run: |
+          mkdir -p "release/${PACKAGE_NAME}"
+          cp -r dist "release/${PACKAGE_NAME}/dist"
+          cp package.json package-lock.json README.md AGENTS.md LICENSE "release/${PACKAGE_NAME}/"
+          cp .env.example "release/${PACKAGE_NAME}/.env.example"
+          cp Dockerfile docker-compose.yml "release/${PACKAGE_NAME}/"
+          cat > "release/${PACKAGE_NAME}/RUN.md" <<'EOF'
+          # Run
+
+          Install production dependencies:
+
+          ```bash
+          npm ci --omit=dev
+          ```
+
+          Start Web UI:
+
+          ```bash
+          node dist/src/index.js web -p 3000
+          ```
+
+          The Web UI is available at:
+
+          ```text
+          http://localhost:3000
+          ```
+
+          Default login:
+
+          ```text
+          username: root
+          password: 123456
+          ```
+
+          The first login requires changing the default password.
+          EOF
+          cd release
+          tar -czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
+          zip -qr "${PACKAGE_NAME}.zip" "${PACKAGE_NAME}"
+          sha256sum "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}.zip" > "checksums.txt"
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            release/${{ env.PACKAGE_NAME }}.tar.gz
+            release/${{ env.PACKAGE_NAME }}.zip
+            release/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
