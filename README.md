@@ -83,10 +83,10 @@ password: 123456
 docker compose up -d --build
 ```
 
-### 使用 GHCR 镜像
+### 使用 Docker Hub 镜像
 
 ```bash
-IMAGE=ghcr.io/<owner>/<repo>:latest docker compose up -d
+IMAGE=<dockerhub-namespace>/wechat-knowledge-base:latest docker compose up -d
 ```
 
 ### 访问
@@ -214,7 +214,21 @@ npm run wx:sync -- -n 5
 
 ### Docker Workflow
 
-`.github/workflows/docker.yml` 在推送 `v*` tag 时触发。
+`.github/workflows/docker.yml` 在推送 `v*` tag 时触发，并推送镜像到 Docker Hub。
+
+需要在 GitHub 仓库配置：
+
+| 类型 | 名称 | 说明 |
+|------|------|------|
+| Secret | `DOCKERHUB_USERNAME` | Docker Hub 用户名或组织名 |
+| Secret | `DOCKERHUB_TOKEN` | Docker Hub Access Token |
+| Variable | `DOCKERHUB_IMAGE` | 可选，完整镜像名，例如 `myorg/wechat-knowledge-base` |
+
+如果未配置 `DOCKERHUB_IMAGE`，默认镜像名为：
+
+```text
+<DOCKERHUB_USERNAME>/wechat-knowledge-base
+```
 
 ```bash
 git tag v1.0.0
@@ -229,17 +243,17 @@ Workflow 会分别构建：
 并推送架构标签：
 
 ```text
-ghcr.io/<owner>/<repo>:v1.0.0-amd64
-ghcr.io/<owner>/<repo>:v1.0.0-arm64
-ghcr.io/<owner>/<repo>:latest-amd64
-ghcr.io/<owner>/<repo>:latest-arm64
+<dockerhub-namespace>/wechat-knowledge-base:v1.0.0-amd64
+<dockerhub-namespace>/wechat-knowledge-base:v1.0.0-arm64
+<dockerhub-namespace>/wechat-knowledge-base:latest-amd64
+<dockerhub-namespace>/wechat-knowledge-base:latest-arm64
 ```
 
 随后创建 multi-arch manifest：
 
 ```text
-ghcr.io/<owner>/<repo>:v1.0.0
-ghcr.io/<owner>/<repo>:latest
+<dockerhub-namespace>/wechat-knowledge-base:v1.0.0
+<dockerhub-namespace>/wechat-knowledge-base:latest
 ```
 
 用户拉取 `latest` 或版本 tag 时，Docker 会按宿主机架构自动选择镜像。
