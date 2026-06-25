@@ -1,9 +1,9 @@
-FROM mcr.microsoft.com/playwright:v1.61.1-noble
+# =========================
+# 1. Builder (Node)
+# =========================
+FROM node:20-bookworm AS builder
 
 WORKDIR /app
-
-ENV NODE_ENV=production
-ENV KNOWLEDGE_BASE_PATH=/data/knowledge_base
 
 COPY package*.json ./
 RUN npm ci
@@ -13,9 +13,23 @@ COPY types ./types
 COPY src ./src
 
 RUN npm run build \
-  && mkdir -p dist/src/web \
-  && cp -r src/web/public dist/src/web/public \
-  && npm prune --omit=dev
+ && mkdir -p dist/src/web \
+ && cp -r src/web/public dist/src/web/public
+
+
+# =========================
+# 2. Runtime (Playwright)
+# =========================
+FROM mcr.microsoft.com/playwright:v1.61.1-noble
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV KNOWLEDGE_BASE_PATH=/data/knowledge_base
+
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 3000
 
