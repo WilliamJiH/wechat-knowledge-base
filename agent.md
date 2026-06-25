@@ -1,87 +1,152 @@
-# agent.md --- 公众号知识演化系统（完整可执行规范）
+# Agent 协作规范
 
-## 0. 系统定义
-
-本系统是一个多Agent协同的知识处理管线，用于：
-
-> 持续采集公众号内容 → 转换为 Markdown → 写入飞书知识库 →
-> 与历史内容进行语义对比 → 生成观点演化链 → 人工校正反馈
-
-**技术栈：** TypeScript 5 + Node.js + sql.js (SQLite) + vectra (本地向量) + DeepSeek API (兼容 OpenAI)
+> 本文档定义多 Agent 系统的行为规范、工作协议与流程约定。
+> 所有 AI Agent 在执行任务前必须阅读并遵守本规范。
 
 ------------------------------------------------------------------------
 
-## 1. 输入定义
+## 1. 系统使命
 
-### 1.1 用户输入
+本系统通过多 Agent 协同，完成以下知识处理目标：
 
-```json
-{
-  "source_type": "wechat",
-  "source": "公众号名称 or URL or RSS",
-  "schedule": "cron表达式（可选，默认 0 8 * * *）",
-  "mode": "latest | full"
-}
+> 采集公众号内容 → 标准化存储 → 语义分析 → 观点验证 → 知识整合 → 演化追踪 → 人工审核
+
+每个 Agent 是管线中的一个专职节点，只负责自己的职责，通过**结构化数据契约**向下游传递结果。
+
+------------------------------------------------------------------------
+
+## 2. Agent 角色清单
+
+| Agent | 角色定位 | 核心职责 |
+|-------|---------|---------|
+| **Crawler** | 采集员 | 抓取原始文章内容，提取元数据 |
+| **Parser** | 清洗员 | HTML→Markdown 转换，图片本地化 |
+| **Analyst** | 分析师 | 从文章中提取观点、主题、摘要 |
+| **Critic** | 评论家 | 批判性验证 Analyst 的输出 |
+| **Strategist** | 策略师 | 综合多 Agent 结果，输出整合建议 |
+| **Evolution** | 演化分析员 | 对比新旧观点，判定演化方向 |
+| **Human** | 人工审核员 | 对 Agent 产出进行最终校正 |
+
+------------------------------------------------------------------------
+
+## 3. 协作流程
+
+### 3.1 总管线
+
+所有 Agent 按以下顺序串行执行，前一个 Agent 的输出是后一个 Agent 的输入：
+
+```
+Crawler → Parser → [Feishu] → Embedding → Analyst → Critic → Strategist → Evolution → Human
 ```
 
-### 1.2 环境变量配置 (.env)
+方括号 `[Feishu]` 表示可选节点，仅在配置了飞书凭据时执行。
 
-| 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | （必填） |
-| `DEEPSEEK_BASE_URL` | API 基地址 | `https://api.deepseek.com` |
-| `DEEPSEEK_MODEL` | 聊天模型名 | `deepseek-chat` |
-| `KNOWLEDGE_BASE_PATH` | 知识库根路径 | `./knowledge_base` |
-| `DB_PATH` | SQLite 数据库路径 | `./knowledge_base/db/knowledge.db` |
-| `FEISHU_APP_ID` | 飞书应用 ID | （可选） |
-| `FEISHU_APP_SECRET` | 飞书应用密钥 | （可选） |
-| `FEISHU_WIKI_SPACE_ID` | 飞书知识库空间 ID | （可选） |
-| `CRON_SCHEDULE` | 定时采集 cron 表达式 | `0 8 * * *` |
+### 3.2 阶段划分
+
+管线分为三个阶段，每个阶段完成后更新文章状态：
+
+| 阶段 | 包含 Agent | 完成后状态 |
+|------|-----------|-----------|
+| 采集阶段 | Crawler → Parser → Feishu | `parsed` |
+| 索引阶段 | Embedding | （状态不变） |
+| 分析阶段 | Analyst → Critic → Strategist | `analyzed` |
+| 演化阶段 | Evolution | `evolved` |
+
+**状态只能单向流转，不可回退：** `crawled → parsed → analyzed → evolved`
 
 ------------------------------------------------------------------------
 
-## 2. 输出定义
+## 4. Agent 间数据契约
 
-系统最终输出 4 类结果：
+### 4.1 Crawler → Parser
 
-### 2.1 原始知识存储
-
-- Markdown 文章（含 YAML frontmatter 元信息头）
-- 图片本地化存储（按 `images/{doc_id}/` 目录组织）
-- 飞书知识库文档（可选，需配置飞书凭据）
-- 原始 HTML 备份（`raw/{doc_id}.html`）
-
-### 2.2 结构化知识（articles 表 + index.json）
+Crawler 输出一个 `CrawlResult` 对象：
 
 ```json
 {
   "doc_id": "uuid",
   "title": "文章标题",
-  "url": "原文 URL",
-  "source": "来源公众号名称",
-  "markdown_path": "knowledge_base/markdown/{doc_id}.md",
-  "feishu_doc_id": "飞书文档 ID（可选）",
-  "image_assets": ["本地图片路径列表"],
-  "status": "crawled | parsed | analyzed | evolved",
-  "created_at": "ISO 时间戳"
+  "url": "原文URL",
+  "html": "正文HTML片段",
+  "author": "作者/公众号名称",
+  "publish_date": "ISO时间戳",
+  "source": "来源标识"
 }
 ```
 
-### 2.3 观点分析结果（Analyst + Critic + Strategist 管线输出）
+### 4.2 Parser → 下游所有 Agent
+
+Parser 产出标准化的 Markdown 文件（含 YAML frontmatter），并写入数据库：
+
+```markdown
+---
+title: "文章标题"
+source: "公众号名称"
+url: "https://mp.weixin.qq.com/s/xxx"
+doc_id: "uuid"
+date: "2025-01-01T00:00:00Z"
+---
+
+正文 Markdown 内容（图片已本地化）...
+```
+
+### 4.3 Analyst → Critic
+
+Analyst 输出 `AnalysisResult`：
 
 ```json
 {
-  "claims": ["核心观点列表"],
-  "topics": ["主题/领域列表"],
-  "summary": "文章精炼摘要（200字以内）",
-  "validated_claims": ["有证据支撑的观点"],
-  "weak_claims": ["证据不足的观点"],
-  "key_insights": ["高价值洞察"],
-  "final_summary": "整合后最终摘要"
+  "claims": ["具体观点1", "具体观点2"],
+  "topics": ["主题关键词1", "主题关键词2"],
+  "summary": "200字以内的精炼摘要"
 }
 ```
 
-### 2.4 观点演化结果（evolution_chains 表 + evolution/{doc_id}.json）
+**约束：**
+- `claims` 必须具体、可验证，禁止笼统描述
+- `topics` 用简短关键词，不超过 5 个
+- `summary` 保留关键信息，去除冗余
+
+### 4.4 Critic → Strategist
+
+Critic 输出 `CritiqueResult`：
+
+```json
+{
+  "validated_claims": ["有证据支撑的观点"],
+  "weak_claims": ["证据不足或过于笼统的观点"],
+  "contradictions": ["观点间的逻辑矛盾（无则为空数组）"],
+  "overall_assessment": "100字以内的整体评价"
+}
+```
+
+**评判标准：**
+- 观点是否有具体数据或案例支撑
+- 逻辑推理链是否完整
+- 是否存在自相矛盾
+- 与常识或已知事实是否冲突
+
+### 4.5 Strategist → Evolution
+
+Strategist 输出 `StrategyResult`：
+
+```json
+{
+  "key_insights": ["最有价值的2-3条洞察"],
+  "knowledge_gaps": ["需要进一步研究的知识空白"],
+  "recommended_actions": ["建议后续追踪的行动"],
+  "final_summary": "150字以内的整合摘要"
+}
+```
+
+**约束：**
+- `key_insights` 必须从 `validated_claims` 中提炼，不能凭空创造
+- `knowledge_gaps` 必须具体，便于后续定向采集
+- 只有 `validated_claims`（Critic 确认的）才会进入演化阶段
+
+### 4.6 Evolution → Human
+
+Evolution 对每条可匹配的历史观点生成演化记录：
 
 ```json
 {
@@ -89,235 +154,106 @@
     { "version": "v1", "claim": "初始观点" },
     { "version": "v2", "claim": "演化后观点" }
   ],
-  "change_type": "extend | refine | contradict",
-  "explanation": "演化原因说明"
+  "change_type": "extend | refine | contradict"
 }
 ```
 
 ------------------------------------------------------------------------
 
-## 3. 系统总流程
+## 5. Agent 行为规范
 
-```
-Scheduler (node-cron)
-  → Crawler (axios + cheerio / rss-parser)
-    → raw/{doc_id}.html 保存原始 HTML
-  → Parser (turndown)
-    → HTML 清洗（去除 script/style/广告）
-    → HTML → Markdown 转换
-    → 图片本地化（下载并替换为相对路径）
-    → markdown/{doc_id}.md 保存（含 YAML frontmatter）
-  → Feishu（可选）
-    → 飞书知识库创建/写入文档
-  → Embedding (vectra + OpenAIEmbeddings)
-    → 文章切分为语义段落
-    → 调用 DeepSeek API 生成向量
-    → 存储到 embeddings/ 本地向量索引
-  → Agents（多 Agent 串行管线）
-    → Analyst Agent：提取 claims / topics / summary
-    → Critic Agent：批判性验证观点
-    → Strategist Agent：综合整合，输出 key_insights
-    → 将 validated_claims 写入 claims 表
-  → Evolution
-    → 新观点与历史观点语义对比（LLM 判断）
-    → 判定 change_type：extend / refine / contradict
-    → 生成演化链，写入 evolution_chains 表
-    → 保存 evolution/{doc_id}.json
-  → Human Review（人工审核，通过 CLI 查看/校正）
-```
+### 5.1 通用规则
 
-------------------------------------------------------------------------
+1. **单一职责**：每个 Agent 只做自己的事，不越权修改其他 Agent 的输出
+2. **结构化输出**：所有 Agent 必须严格按照契约格式输出 JSON，不得附加自由文本
+3. **无状态**：Agent 不保留跨次调用的内部状态，所有上下文通过输入参数传递
+4. **幂等性**：对同一输入多次调用同一 Agent，应产出相同结果（temperature 参数控制）
 
-## 4. Agent 定义
+### 5.2 Analyst 行为规范
 
-### 4.1 Analyst Agent（分析师）
+- 输入截断：最多读取文章前 8000 字符，超出部分忽略
+- temperature = 0.3（偏保守，减少随机性）
+- 观点数量：不少于 2 条，不超过 10 条
+- 禁止输出主观评价，只提取文章中的客观主张
 
-**文件：** `src/agents/analyst.ts`
-**职责：** 从文章 Markdown 中提取结构化知识
-**输入：** 文章标题 + Markdown 内容（截断 8000 字）
-**输出：** `{ claims: string[], topics: string[], summary: string }`
-**Prompt 策略：** temperature=0.3，要求观点具体可验证、主题用关键词描述
+### 5.3 Critic 行为规范
 
-### 4.2 Critic Agent（评论家）
+- temperature = 0.4
+- 必须对每条 claim 给出判定（validated 或 weak），不允许遗漏
+- 如果观点间存在矛盾，必须在 `contradictions` 中明确说明哪两条冲突及原因
+- 不允许新增观点，只能对 Analyst 的输出做评判
 
-**文件：** `src/agents/critic.ts`
-**职责：** 对 Analyst 提取的观点进行批判性分析
-**输入：** 文章标题 + AnalysisResult（Analyst 的输出）
-**输出：** `{ validated_claims, weak_claims, contradictions, overall_assessment }`
-**评判标准：** 是否有数据/案例支撑、逻辑推理是否合理、是否存在自相矛盾
+### 5.4 Strategist 行为规范
 
-### 4.3 Strategist Agent（策略师）
+- temperature = 0.5（允许更多创造性）
+- `key_insights` 必须从 `validated_claims` 中提炼，不能凭空创造
+- `knowledge_gaps` 要指向具体的信息缺失，而非泛泛而谈
+- `final_summary` 要综合三方视角（原文、分析、评论），不是简单复述
 
-**文件：** `src/agents/strategist.ts`
-**职责：** 综合 Analyst 和 Critic 的结果，给出知识整合建议
-**输入：** 文章标题 + AnalysisResult + CritiqueResult
-**输出：** `{ key_insights, knowledge_gaps, recommended_actions, final_summary }`
+### 5.5 Evolution 行为规范
 
-### 4.4 Agent 协调器
-
-**文件：** `src/agents/index.ts`
-**函数：** `runAgentPipeline(docId)`
-**流程：** 读取 Markdown → Analyst → Critic → Strategist → 保存 validated_claims 到数据库 → 更新状态为 `analyzed`
-
-### 4.5 Evolution Agent（演化分析）
-
-**文件：** `src/evolution/index.ts`
-**职责：** 对比新旧观点，判断知识演化方向
-**change_type 类型：**
-- `extend`：新观点扩展了旧观点的范围或内容
-- `refine`：新观点精炼/细化了旧观点
-- `contradict`：新观点与旧观点存在矛盾或冲突
+- temperature = 0.3
+- 只对比**相同或相似主题**下的观点，不做跨主题对比
+- 如果没有可匹配的历史观点，输出空 `comparisons` 数组，不强行匹配
+- `change_type` 必须是三选一，不允许自定义类型：
+  - **extend**：新观点扩展了旧观点的范围、场景或应用
+  - **refine**：新观点使旧观点更精确、更细化或修正了细节
+  - **contradict**：新观点与旧观点在核心主张上存在直接冲突
 
 ------------------------------------------------------------------------
 
-## 5. 数据库 Schema
+## 6. 知识演化铁律
 
-使用 sql.js（纯 JS SQLite），数据库文件：`knowledge_base/db/knowledge.db`
+以下规则是系统的核心约束，任何 Agent 不得违反：
 
-### articles 表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `doc_id` | TEXT PK | UUID 文章唯一标识 |
-| `title` | TEXT NOT NULL | 文章标题 |
-| `url` | TEXT | 原文 URL |
-| `source` | TEXT | 来源公众号名称 |
-| `markdown_path` | TEXT | Markdown 文件本地路径 |
-| `feishu_doc_id` | TEXT | 飞书文档 ID |
-| `status` | TEXT | crawled / parsed / analyzed / evolved |
-| `created_at` | TEXT | 创建时间 |
-
-### claims 表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | TEXT PK | UUID |
-| `doc_id` | TEXT FK | 关联文章 |
-| `claim` | TEXT NOT NULL | 观点内容 |
-| `topic` | TEXT | 所属主题 |
-| `version` | INTEGER | 版本号（默认 1） |
-| `created_at` | TEXT | 创建时间 |
-
-### evolution_chains 表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | TEXT PK | UUID |
-| `claim_id` | TEXT FK | 关联观点 |
-| `version` | INTEGER | 演化版本号 |
-| `claim_text` | TEXT NOT NULL | 该版本观点内容 |
-| `change_type` | TEXT NOT NULL | extend / refine / contradict |
-| `created_at` | TEXT | 创建时间 |
-
-### image_assets 表
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | TEXT PK | UUID |
-| `doc_id` | TEXT FK | 关联文章 |
-| `original_url` | TEXT | 图片原始 URL |
-| `local_path` | TEXT | 本地存储路径 |
+1. **不允许重复观点** —— 同一语义的观点不能在系统中存在两份，Critic 负责检测，Evolution 负责标记
+2. **必须递进式演化** —— 每条观点的演化链必须是递进的（v1 → v2 → v3），不允许平级重复
+3. **原文不可篡改** —— Markdown 文件保留原文内容，Parser 只清洗非正文元素（脚本/广告/导航），不删改正文
+4. **图片必须本地化** —— 所有远程图片必须下载到本地，Markdown 中引用本地相对路径
+5. **观点来源可追溯** —— 每条 claim 必须关联 `doc_id`，可追溯到原始文章
 
 ------------------------------------------------------------------------
 
-## 6. CLI 命令
+## 7. 错误处理协议
 
-```bash
-wkb crawl <urls...>         # 爬取微信公众号文章（支持 --rss 模式）
-wkb analyze <doc_id>        # 对已爬取文章运行多 Agent 分析管线
-wkb evolve <doc_id>         # 基于已分析观点生成演化链
-wkb index <doc_id>          # 为文章生成向量化索引
-wkb search <query>          # 语义检索知识库（支持 -k 参数）
-wkb pipeline <urls...>      # 一键完整管线：爬取→转换→索引→分析→演化
-wkb start [--rss <feeds>]   # 启动定时采集调度器
-wkb list                    # 列出所有已采集文章及状态
-```
+| 场景 | 处理方式 |
+|------|---------|
+| LLM API 返回 429（限流） | 等待 3 秒后重试一次 |
+| LLM API 返回 5xx（服务端错误） | 等待 3 秒后重试一次 |
+| LLM 返回非法 JSON | 抛出错误，记录日志，跳过当前文章 |
+| 文章爬取超时（30s） | 记录错误，跳过该文章，继续处理队列 |
+| 图片下载失败 | 保留原始 URL，不中断文章处理流程 |
+| 飞书同步失败 | 记录错误，不影响本地存储和分析流程 |
+| 数据库中文章已存在 | 跳过，不重复处理 |
 
-**快速开始：**
-
-```bash
-# 1. 复制配置并填入 API Key
-cp .env.example .env
-
-# 2. 爬取一篇文章
-npx ts-node src/index.ts crawl "https://mp.weixin.qq.com/s/xxxxx"
-
-# 3. 运行完整管线（爬取 + 分析 + 演化）
-npx ts-node src/index.ts pipeline "https://mp.weixin.qq.com/s/xxxxx"
-
-# 4. 语义检索
-npx ts-node src/index.ts search "AI 大模型发展趋势"
-
-# 5. 启动定时任务（每天早上 8 点自动采集 RSS）
-npx ts-node src/index.ts start --rss "https://rsshub.app/wechat/mp/xxx"
-```
+**原则：** 单个环节的失败不应阻塞整条管线。每个 Agent 独立捕获异常，记录后继续。
 
 ------------------------------------------------------------------------
 
-## 7. 关键规则
+## 8. 协调器职责
 
-- **不允许重复观点**：Critic Agent 负责检查逻辑一致性，Evolution Agent 负责去重
-- **必须递进式演化**：change_type 只能是 extend / refine / contradict，不允许平级重复
-- **Markdown 保留原文**：转换过程不删减正文内容，仅清洗脚本/广告等非正文元素
-- **图片必须本地化**：所有远程图片下载至 `images/{doc_id}/`，Markdown 中替换为相对路径
-- **文章状态流转**：`crawled → parsed → analyzed → evolved`，每个阶段完成后更新状态
-- **LLM 错误自动重试**：429/5xx 错误 3 秒后重试一次
+Agent 协调器（`src/agents/index.ts` 中的 `runAgentPipeline`）负责：
 
-------------------------------------------------------------------------
-
-## 8. 系统目标
-
-构建持续进化的公众号知识系统（Knowledge Evolution System）：
-- 可持续采集：支持定时 RSS 自动采集，也支持手动 URL 爬取
-- 标准化存储：HTML→Markdown 统一格式，图片本地化，SQLite 结构化管理
-- 向量化检索：语义 embedding 索引，支持相似内容检索
-- 多 Agent 协同：Analyst/Critic/Strategist 串行分析，确保观点质量
-- 观点演化追踪：历史观点对比，形成知识演化链
-- 飞书同步（可选）：自动将内容同步至飞书知识库
+1. **按序调度**：严格按照 Analyst → Critic → Strategist 的顺序执行，不可并行或乱序
+2. **传递上下文**：将前一个 Agent 的完整输出作为后一个 Agent 的输入
+3. **持久化结果**：将 Critic 确认的 `validated_claims` 写入数据库
+4. **状态更新**：管线完成后将文章状态更新为 `analyzed`
+5. **异常中断**：任一 Agent 调用失败时，中断管线并报告具体失败节点
 
 ------------------------------------------------------------------------
 
-## 9. 项目结构
+## 9. 人工审核协议
 
-```
-d:\Dev\wechat-knowledge-base\
-├── src/
-│   ├── config/index.ts        # 统一配置管理（.env 读取 + 路径计算）
-│   ├── storage/
-│   │   ├── db.ts              # sql.js SQLite 数据库 CRUD（4张表）
-│   │   └── index.ts           # index.json 索引文件读写
-│   ├── crawler/
-│   │   ├── wechat.ts          # 微信文章爬虫（axios + cheerio）
-│   │   └── index.ts           # RSS 源采集（rss-parser）
-│   ├── parser/
-│   │   ├── index.ts           # HTML→Markdown 转换（turndown）+ 清洗
-│   │   └── image.ts           # 图片下载与本地化
-│   ├── embedding/index.ts     # 向量化索引（vectra + OpenAIEmbeddings）
-│   ├── agents/
-│   │   ├── llm.ts             # DeepSeek LLM 客户端（openai SDK 兼容）
-│   │   ├── analyst.ts         # 分析师 Agent：提取观点/主题/摘要
-│   │   ├── critic.ts          # 评论家 Agent：批判性验证观点
-│   │   ├── strategist.ts      # 策略师 Agent：知识整合与建议
-│   │   └── index.ts           # Agent 协调器：串行执行三 Agent 管线
-│   ├── evolution/index.ts     # 观点演化链生成（新旧对比 + 分类）
-│   ├── feishu/index.ts        # 飞书知识库 API 封装（可选）
-│   ├── scheduler/index.ts     # 定时调度（node-cron）+ 完整管线编排
-│   ├── types/sql.js.d.ts      # sql.js 类型声明
-│   └── index.ts               # CLI 入口（commander）
-├── knowledge_base/            # 数据目录（运行时自动生成）
-│   ├── raw/                   # 原始 HTML 备份
-│   ├── markdown/              # 转换后的 Markdown 文件
-│   ├── images/                # 本地化图片（按 doc_id 分目录）
-│   ├── embeddings/            # vectra 向量索引文件
-│   ├── db/                    # SQLite 数据库
-│   ├── evolution/             # 演化链 JSON 文件
-│   └── index.json             # 文章索引清单
-├── types/sql.js.d.ts          # sql.js 全局类型声明
-├── .env.example               # 环境变量示例
-├── .gitignore
-├── tsconfig.json
-├── package.json
-├── agent.md                   # 本规范文件
-├── README.md
-└── LICENSE
-```
+Human Review 是管线的最终环节，通过 CLI 交互完成：
+
+| 操作 | 对应命令 | 说明 |
+|------|---------|------|
+| 查看文章列表 | `list` | 查看所有文章及其状态 |
+| 查看分析结果 | `analyze <doc_id>` | 输出完整的 Agent 分析 JSON |
+| 语义检索 | `search <query>` | 基于向量相似度检索相关内容 |
+| 查看演化链 | `evolve <doc_id>` | 生成并展示观点演化路径 |
+
+人工审核员可以：
+- 确认 Agent 产出的观点是否准确
+- 标记需要修正的观点（未来扩展：通过 `claims` 表的 status 字段）
+- 触发重新分析（删除旧记录后重新运行 `analyze`）
