@@ -121,42 +121,16 @@ export async function appendEvolutionToFeishuReport(
   console.log(`[Feishu] Knowledge evolution appended: ${article.feishu_report_doc_id}`);
 }
 
-/** 写入文档内容 */
+/** Convert Markdown into structured Feishu document blocks. */
 async function writeDocContent(token: string, docId: string, markdown: string): Promise<void> {
-  // 飞书文档 API 要求使用 block 格式
-  // 这里简化处理：将 Markdown 按段落切分为文本块
-  const paragraphs = markdown.split('\n\n').filter((p) => p.trim());
-
-  // 获取文档根 block
-  const metaResp = await axios.get(`${FEISHU_API_BASE}/docx/v1/documents/${docId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const rootBlockId = metaResp.data?.data?.document?.document_id;
-
-  if (!rootBlockId) return;
-
-  // 批量创建文本块
-  const blocks = paragraphs.map((para) => ({
-    block_type: 2, // text block
-    text: {
-      elements: [{ text_run: { content: para.slice(0, 500) } }],
-      style: {},
+  await axios.post(
+    `${FEISHU_API_BASE}/docx/v1/documents/${docId}/blocks/convert`,
+    {
+      content_type: 'markdown',
+      content: markdown,
     },
-  }));
-
-  // 飞书 API 限制每次最多 50 个 block
-  for (let i = 0; i < blocks.length; i += 50) {
-    const batch = blocks.slice(i, i + 50);
-    try {
-      await axios.post(
-        `${FEISHU_API_BASE}/docx/v1/documents/${docId}/blocks/${rootBlockId}/children`,
-        { children: batch },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-    } catch (err) {
-      console.error(`[Feishu] 写入文档内容失败 (batch ${i}):`, err);
-    }
-  }
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
 }
 
 /** 检查飞书配置是否可用 */
