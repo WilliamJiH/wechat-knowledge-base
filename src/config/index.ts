@@ -33,6 +33,7 @@ export const config = {
     appId: process.env.FEISHU_APP_ID || '',
     appSecret: process.env.FEISHU_APP_SECRET || '',
     wikiSpaceId: process.env.FEISHU_WIKI_SPACE_ID || '',
+    wikiParentNodeToken: process.env.FEISHU_WIKI_PARENT_NODE_TOKEN || '',
   },
 
   // 定时任务

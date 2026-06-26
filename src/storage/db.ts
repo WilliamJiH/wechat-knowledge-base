@@ -31,10 +31,16 @@ export async function initDB(): Promise<Database> {
       source TEXT,
       markdown_path TEXT,
       feishu_doc_id TEXT,
+      feishu_report_doc_id TEXT,
       status TEXT DEFAULT 'crawled',
       created_at TEXT DEFAULT (datetime('now'))
     );
   `);
+
+  const articleColumns = db.exec(`PRAGMA table_info(articles)`)[0]?.values || [];
+  if (!articleColumns.some((column: any[]) => column[1] === 'feishu_report_doc_id')) {
+    db.run(`ALTER TABLE articles ADD COLUMN feishu_report_doc_id TEXT`);
+  }
 
   db.run(`
     CREATE TABLE IF NOT EXISTS claims (
@@ -106,6 +112,7 @@ export interface Article {
   source: string | null;
   markdown_path: string | null;
   feishu_doc_id: string | null;
+  feishu_report_doc_id: string | null;
   status: string;
   created_at: string;
 }
@@ -150,6 +157,12 @@ export function updateArticleStatus(docId: string, status: string): void {
 export function updateFeishuDocId(docId: string, feishuDocId: string): void {
   const d = getDB();
   d.run(`UPDATE articles SET feishu_doc_id = ? WHERE doc_id = ?`, [feishuDocId, docId]);
+  saveDB();
+}
+
+export function updateFeishuReportDocId(docId: string, feishuDocId: string): void {
+  const d = getDB();
+  d.run(`UPDATE articles SET feishu_report_doc_id = ? WHERE doc_id = ?`, [feishuDocId, docId]);
   saveDB();
 }
 

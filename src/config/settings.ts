@@ -15,6 +15,7 @@ export interface RuntimeSettings {
     appId?: string;
     appSecret?: string;
     wikiSpaceId?: string;
+    wikiParentNodeToken?: string;
   };
 }
 
@@ -69,6 +70,7 @@ export function saveFeishuSettings(input: Record<string, unknown>): RuntimeSetti
     appId: input.appId,
     appSecret: input.appSecret,
     wikiSpaceId: input.wikiSpaceId,
+    wikiParentNodeToken: input.wikiParentNodeToken,
   });
   return writeRuntimeSettings({ ...current, feishu });
 }
@@ -109,6 +111,7 @@ export function applyRuntimeSettings(config: any): void {
   if (runtime.feishu?.appId) config.feishu.appId = runtime.feishu.appId;
   if (runtime.feishu?.appSecret) config.feishu.appSecret = runtime.feishu.appSecret;
   if (runtime.feishu?.wikiSpaceId) config.feishu.wikiSpaceId = runtime.feishu.wikiSpaceId;
+  if (runtime.feishu?.wikiParentNodeToken) config.feishu.wikiParentNodeToken = runtime.feishu.wikiParentNodeToken;
 }
 
 export function getSettingsStatus(config: any) {
@@ -128,6 +131,7 @@ export function getSettingsStatus(config: any) {
       appIdConfigured: !!config.feishu.appId,
       appSecretConfigured: !!config.feishu.appSecret,
       wikiSpaceIdConfigured: !!config.feishu.wikiSpaceId,
+      wikiParentNodeTokenConfigured: !!config.feishu.wikiParentNodeToken,
     },
   };
 }

@@ -195,6 +195,7 @@ function resetProjectData(): void {
   config.feishu.appId = process.env.FEISHU_APP_ID || '';
   config.feishu.appSecret = process.env.FEISHU_APP_SECRET || '';
   config.feishu.wikiSpaceId = process.env.FEISHU_WIKI_SPACE_ID || '';
+  config.feishu.wikiParentNodeToken = process.env.FEISHU_WIKI_PARENT_NODE_TOKEN || '';
   resetLLMClient();
 }
 

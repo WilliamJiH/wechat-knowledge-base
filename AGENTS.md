@@ -95,6 +95,7 @@ API 和飞书配置有两个来源：
 - `FEISHU_APP_ID`
 - `FEISHU_APP_SECRET`
 - `FEISHU_WIKI_SPACE_ID`
+- `FEISHU_WIKI_PARENT_NODE_TOKEN`（可选；留空时报告创建在知识库空间根目录）
 
 如果 `EMBEDDING_BASE_URL` 不是自定义地址，设置页应允许留空，并按 provider 使用默认地址。
 

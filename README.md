@@ -170,6 +170,7 @@ DB_PATH=/data/knowledge_base/db/knowledge.db
 | `FEISHU_APP_ID` | 飞书应用 ID | 空 |
 | `FEISHU_APP_SECRET` | 飞书应用 Secret | 空 |
 | `FEISHU_WIKI_SPACE_ID` | 飞书知识库空间 ID | 空 |
+| `FEISHU_WIKI_PARENT_NODE_TOKEN` | 飞书知识库目录节点 Token；留空时创建在空间根目录 | 空 |
 
 ## Web 使用流程
 

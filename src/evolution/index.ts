@@ -85,7 +85,7 @@ ${historicalClaims.map((c) => `[${c.id}] ${c.claim} (主题: ${c.topic || '无'}
 }
 
 /** 生成演化链并保存 */
-export async function generateEvolution(docId: string, newClaims: string[]): Promise<void> {
+export async function generateEvolution(docId: string, newClaims: string[]): Promise<EvolutionChainResult[]> {
   console.log(`[Evolution] 开始生成演化链: ${docId}`);
 
   // 获取所有历史观点（排除当前文章）
@@ -97,7 +97,7 @@ export async function generateEvolution(docId: string, newClaims: string[]): Pro
   if (comparisons.length === 0) {
     console.log(`[Evolution] 没有可对比的历史观点，跳过演化`);
     updateArticleStatus(docId, 'evolved');
-    return;
+    return [];
   }
 
   // 保存演化结果
@@ -142,4 +142,5 @@ export async function generateEvolution(docId: string, newClaims: string[]): Pro
 
   updateArticleStatus(docId, 'evolved');
   console.log(`[Evolution] 演化完成: ${evolutionPath}`);
+  return evolutionResults;
 }

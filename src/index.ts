@@ -9,7 +9,7 @@ import { indexArticle, searchSimilar } from './embedding';
 import { runAgentPipeline } from './agents';
 import { generateEvolution } from './evolution';
 import { processArticle, processMultipleArticles, startScheduler } from './scheduler';
-import { isFeishuConfigured, createFeishuDoc } from './feishu';
+import { appendEvolutionToFeishuReport, isFeishuConfigured, syncAnalysisReport } from './feishu';
 import * as fs from 'fs';
 import {
   getWechatPublishedArticles,
@@ -70,6 +70,15 @@ program
     await initDB();
     try {
       const result = await runAgentPipeline(docId);
+      const evolution = await generateEvolution(docId, result.analysis.claims);
+      if (isFeishuConfigured()) {
+        const article = getArticle(docId);
+        if (article) {
+          const report = fs.readFileSync(result.reportPath, 'utf-8');
+          await syncAnalysisReport(docId, article.title, report);
+          await appendEvolutionToFeishuReport(docId, evolution);
+        }
+      }
       console.log('\n分析结果:');
       console.log(JSON.stringify(result, null, 2));
     } finally {
