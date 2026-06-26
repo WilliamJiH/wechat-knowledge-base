@@ -51,8 +51,8 @@
     <button onclick="showTab('wechat')" id="tab-wechat" class="tab-btn px-4 py-2.5 text-sm text-gray-500 tab-active">微信订阅</button>
     <button onclick="showTab('history')" id="tab-history" class="tab-btn px-4 py-2.5 text-sm text-gray-500">执行历史</button>
     <button onclick="showTab('usage')" id="tab-usage" class="tab-btn px-4 py-2.5 text-sm text-gray-500">用量</button>
-    <button onclick="showTab('settings')" id="tab-settings" class="tab-btn px-4 py-2.5 text-sm text-gray-500">设置</button>
     <button onclick="showTab('prompts')" id="tab-prompts" class="tab-btn px-4 py-2.5 text-sm text-gray-500">提示词</button>
+    <button onclick="showTab('settings')" id="tab-settings" class="tab-btn px-4 py-2.5 text-sm text-gray-500">设置</button>
   </nav>
 </header>
 
@@ -93,9 +93,12 @@
     <div class="bg-white rounded-xl shadow-sm border p-6 mb-4">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-base font-semibold"> 执行历史</h2>
-        <button onclick="loadHistory()" class="text-xs text-blue-500 hover:underline">刷新</button>
+        <div class="flex items-center gap-3">
+          <button onclick="clearHistoryUi()" class="text-xs text-red-500 hover:underline">清空</button>
+          <button onclick="loadHistory()" class="text-xs text-blue-500 hover:underline">刷新</button>
+        </div>
       </div>
-      <div id="historyList" class="space-y-1.5 text-sm text-gray-400 max-h-[60vh] overflow-y-auto">加载中...</div>
+      <div id="historyList" class="space-y-1.5 text-sm text-gray-400 h-[520px] overflow-y-auto pr-1">加载中...</div>
     </div>
     <div class="bg-white rounded-xl shadow-sm border p-6">
       <div class="flex items-center justify-between mb-4">
@@ -105,7 +108,7 @@
           <button onclick="loadReports()" class="text-xs text-blue-500 hover:underline">刷新</button>
         </div>
       </div>
-      <div id="reportFileList" class="space-y-1.5 text-sm text-gray-400 max-h-[40vh] overflow-y-auto">加载中...</div>
+      <div id="reportFileList" class="space-y-1.5 text-sm text-gray-400 h-[360px] overflow-y-auto pr-1">加载中...</div>
     </div>
   </section>
 
@@ -289,6 +292,16 @@
         </div>
       </div>
     </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-red-100 p-6 lg:col-span-2">
+      <h2 class="text-base font-semibold text-red-700 mb-2">项目重置</h2>
+      <p class="text-sm text-gray-500 mb-4">重置会删除数据库、同步入库产生的文件、API 配置、订阅公众号、定时任务、执行结果和微信公众平台授权。</p>
+      <div class="flex items-center gap-3">
+        <button onclick="resetProjectUi()"
+          class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition">重置项目</button>
+        <span id="resetProjectMessage" class="text-sm text-gray-400"></span>
+      </div>
+    </div>
   </section>
 
   <!-- ===== Agent Prompts ===== -->
@@ -305,7 +318,7 @@
 <script>
 // =================== 全局 ===================
 const API = '';
-const TABS = ['wechat','history','usage','settings','prompts'];
+const TABS = ['wechat','history','usage','prompts','settings'];
 let authState = { authenticated: false, mustChangePassword: false };
 
 function showTab(tab) {
@@ -685,6 +698,7 @@ async function loadHistory() {
   } catch (e) { el.innerHTML = `<p class="text-red-500">加载失败: ${e.message}</p>`; }
 }
 setInterval(loadHistory, 15000);
+setInterval(loadReports, 15000);
 
 // =================== 用量 ===================
 async function loadHistory() {
@@ -739,6 +753,28 @@ function downloadAllReports() {
   window.location.href = '/api/reports/download-all';
 }
 
+async function clearHistoryUi() {
+  if (!confirm('确定清空执行历史吗？')) return;
+  await apiFetch('/api/history', { method: 'DELETE' });
+  await loadHistory();
+}
+
+async function resetProjectUi() {
+  if (!confirm('确定重置项目吗？')) return;
+  const msg = document.getElementById('resetProjectMessage');
+  msg.textContent = '重置中...';
+  msg.className = 'text-sm text-gray-400';
+  try {
+    await apiFetch('/api/reset', { method: 'POST' });
+    msg.textContent = '已重置';
+    msg.className = 'text-sm text-green-600';
+    showAuth('login');
+  } catch (e) {
+    msg.textContent = `重置失败：${e.message}`;
+    msg.className = 'text-sm text-red-500';
+  }
+}
+
 function usageCard(label, value) {
   return `
     <div class="border rounded-lg p-4 bg-gray-50">
@@ -785,6 +821,43 @@ async function loadUsage() {
 }
 
 // =================== 微信公众平台订阅 ===================
+async function loadUsage() {
+  const summary = document.getElementById('usageSummary');
+  const list = document.getElementById('usageList');
+  try {
+    const { totals, records } = await apiFetch('/api/usage/llm?limit=100');
+    summary.innerHTML = [
+      usageCard('分析轮次', totals.requests),
+      usageCard('输入 Tokens', totals.promptTokens),
+      usageCard('输出 Tokens', totals.completionTokens),
+      usageCard('总 Tokens', totals.totalTokens),
+    ].join('');
+
+    if (!records.length) {
+      list.innerHTML = '<p class="text-gray-400">暂无 AI token 用量记录</p>';
+      return;
+    }
+
+    list.innerHTML = records.map(record => `
+      <div class="border rounded-lg p-3 flex items-center justify-between gap-3 bg-gray-50">
+        <div class="min-w-0">
+          <p class="font-medium text-gray-800 truncate">${escapeHtml(record.title || record.model)}</p>
+          <p class="text-xs text-gray-400">${new Date(record.createdAt).toLocaleString('zh-CN')} · ${escapeHtml(record.model)}</p>
+          ${record.docId ? `<p class="mono text-xs text-gray-400 truncate">${escapeHtml(record.docId)}</p>` : ''}
+        </div>
+        <div class="grid grid-cols-3 gap-4 text-right text-xs shrink-0">
+          <div><p class="text-gray-400">输入</p><p class="font-semibold text-gray-700">${record.promptTokens.toLocaleString('zh-CN')}</p></div>
+          <div><p class="text-gray-400">输出</p><p class="font-semibold text-gray-700">${record.completionTokens.toLocaleString('zh-CN')}</p></div>
+          <div><p class="text-gray-400">总计</p><p class="font-semibold text-gray-900">${record.totalTokens.toLocaleString('zh-CN')}</p></div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    summary.innerHTML = '';
+    list.innerHTML = `<p class="text-red-500">加载失败: ${escapeHtml(e.message)}</p>`;
+  }
+}
+
 let wechatStatusTimer = null;
 let wechatSearchCache = [];
 
