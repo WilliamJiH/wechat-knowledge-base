@@ -10,6 +10,7 @@ Agent 协作规范见 [AGENTS.md](./AGENTS.md)。
 - [快速开始](#快速开始)
 - [Docker 部署](#docker-部署)
 - [环境变量](#环境变量)
+- [飞书知识库同步](#飞书知识库同步)
 - [Web 使用流程](#web-使用流程)
 - [CLI 命令](#cli-命令)
 - [GitHub Actions](#github-actions)
@@ -171,6 +172,55 @@ DB_PATH=/data/knowledge_base/db/knowledge.db
 | `FEISHU_APP_SECRET` | 飞书应用 Secret | 空 |
 | `FEISHU_WIKI_SPACE_ID` | 飞书知识库空间 ID | 空 |
 | `FEISHU_WIKI_PARENT_NODE_TOKEN` | 飞书知识库目录节点 Token；留空时创建在空间根目录 | 空 |
+
+## 飞书知识库同步
+
+飞书同步是可选能力。配置完成后，每篇文章完成分析和知识演进后，系统会将分析报告创建为飞书知识库中的云文档；演进结果会追加到同一份报告的“Knowledge evolution”部分。本地报告仍会保留在 `knowledge_base/reports/`。
+
+### 1. 创建并授权飞书应用
+
+在飞书开放平台创建企业自建应用，并将应用机器人加入目标知识库的管理员或可编辑成员。至少开通以下权限：
+
+| 权限 | 用途 |
+|------|------|
+| `wiki:node:create` | 在知识库空间或指定目录中创建报告节点 |
+| `wiki:space:retrieve` | 查询知识库空间信息 |
+| `wiki:wiki` | 查看和管理知识库 |
+| `docx:document` | 创建、读取和编辑云文档内容 |
+| `docx:document.block:convert` | 将 Markdown 转换为飞书云文档块 |
+
+权限变更后，确认应用版本已发布到当前租户。未将机器人加入知识库，或未发布权限变更，都会导致创建节点或写入文档失败。
+
+### 2. 获取配置值
+
+- `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET`：在飞书开放平台应用的“凭证与基础信息”中获取。
+- `FEISHU_WIKI_SPACE_ID`：目标知识库的空间 ID。可由知识库管理员通过飞书开放平台的知识库空间列表 API 获取；它不是页面 URL 中的文档节点 Token。
+- `FEISHU_WIKI_PARENT_NODE_TOKEN`：可选。打开希望存放报告的知识库目录，URL 中 `/wiki/` 后的值就是该目录节点的 Token。例如：
+
+  ```text
+  https://example.feishu.cn/wiki/AbCdEfGhIjKlMnOpQrStUvWxYz
+  ```
+
+  此例中的 `AbCdEfGhIjKlMnOpQrStUvWxYz` 就是父节点 Token。留空时，报告直接创建在知识库空间根目录。
+
+### 3. 在 Web 中保存配置
+
+1. 登录系统后打开导航栏“设置”。
+2. 在“飞书配置”填写 App ID、App Secret 和知识库空间 ID。
+3. 需要归档到指定目录时，再填写父节点 Token。
+4. 点击“保存飞书配置”。
+
+设置页不会回显已保存的 Secret。输入框留空表示保留已有值；填写新值会覆盖已有配置。配置保存在运行时数据目录的 `knowledge_base/app_settings.json`，不应提交到 Git。
+
+### 4. 同步结果
+
+点击“同步入库”或由定时任务处理文章时，流程依次执行采集、解析、索引、Agent 分析和知识演进。飞书同步在最后执行：
+
+1. 创建标题为 `Analysis report - <文章标题>` 的知识库云文档。
+2. 使用飞书 Markdown 转换接口将报告写成原生标题、列表和段落，而不是显示 Markdown 标记。
+3. 有演进结果时，将其追加到同一份云文档。
+
+飞书同步失败不会阻断文章的本地入库、分析报告或演进结果。可在执行历史和服务日志中查看同步错误；日志不会输出飞书 Access Token 或 App Secret。
 
 ## Web 使用流程
 
