@@ -1,43 +1,34 @@
-name: Release
-
-on:
-  workflow_dispatch:
-  push:
-    tags:
-      - "v*"
-      - "!*-alpha*"
+name: Release (Linux, macOS, Windows)
 
 permissions:
   contents: write
 
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "reason"
+        required: false
+  push:
+    tags:
+      - "*"
+      - "!*-alpha*"
+
 jobs:
-  build:
-    name: Build ${{ matrix.platform }} release
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            platform: windows
-            archive: zip
-          - os: macos-latest
-            platform: macos
-            archive: tar.gz
-
+  linux:
+    name: Linux Release
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Determine version
-        shell: bash
+      - name: Determine Version
         run: |
-          VERSION="$(git describe --tags --always)"
+          VERSION="$(git describe --tags)"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
-          echo "PACKAGE_NAME=wechat-knowledge-base-${VERSION}-${{ matrix.platform }}" >> "$GITHUB_ENV"
+          echo "PACKAGE_NAME=wechat-knowledge-base-linux-${VERSION}" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -45,19 +36,15 @@ jobs:
           node-version: "20"
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
       - name: Build
-        shell: bash
         run: |
+          npm ci
           npm run build
           mkdir -p "dist/src/web"
           cp -r "src/web/public" "dist/src/web/public"
           npm prune --omit=dev
 
       - name: Create release package
-        shell: bash
         run: |
           mkdir -p "release/${PACKAGE_NAME}"
           cp -r dist "release/${PACKAGE_NAME}/dist"
@@ -91,30 +78,178 @@ jobs:
 
           API keys and Feishu settings can be configured in the Web UI settings page.
           EOF
+          cd release
+          tar -czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
+          sha256sum "${PACKAGE_NAME}.tar.gz" > checksums-linux.txt
 
-      - name: Archive Windows release
-        if: matrix.platform == 'windows'
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            release/wechat-knowledge-base-linux-*.tar.gz
+            release/checksums-linux.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  macos:
+    name: macOS Release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Version
+        run: |
+          VERSION="$(git describe --tags)"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "PACKAGE_NAME=wechat-knowledge-base-macos-${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Build
+        run: |
+          npm ci
+          npm run build
+          mkdir -p "dist/src/web"
+          cp -r "src/web/public" "dist/src/web/public"
+          npm prune --omit=dev
+
+      - name: Create release package
+        run: |
+          mkdir -p "release/${PACKAGE_NAME}"
+          cp -r dist "release/${PACKAGE_NAME}/dist"
+          cp -r node_modules "release/${PACKAGE_NAME}/node_modules"
+          cp package.json package-lock.json README.md AGENTS.md LICENSE "release/${PACKAGE_NAME}/"
+          cp .env.example "release/${PACKAGE_NAME}/.env.example"
+          cp Dockerfile docker-compose.yml "release/${PACKAGE_NAME}/"
+          cat > "release/${PACKAGE_NAME}/RUN.md" <<'EOF'
+          # Run
+
+          Start Web UI:
+
+          ```bash
+          node dist/src/index.js web -p 3000
+          ```
+
+          The Web UI is available at:
+
+          ```text
+          http://localhost:3000
+          ```
+
+          Default login:
+
+          ```text
+          username: root
+          password: 123456
+          ```
+
+          The first login requires changing the default password.
+
+          API keys and Feishu settings can be configured in the Web UI settings page.
+          EOF
+          cd release
+          tar -czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
+          shasum -a 256 "${PACKAGE_NAME}.tar.gz" > checksums-macos.txt
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            release/wechat-knowledge-base-macos-*.tar.gz
+            release/checksums-macos.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  windows:
+    name: Windows Release
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Version
+        run: |
+          VERSION="$(git describe --tags)"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "PACKAGE_NAME=wechat-knowledge-base-windows-${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Build
+        run: |
+          npm ci
+          npm run build
+          mkdir -p "dist/src/web"
+          cp -r "src/web/public" "dist/src/web/public"
+          npm prune --omit=dev
+
+      - name: Create release package
+        run: |
+          mkdir -p "release/${PACKAGE_NAME}"
+          cp -r dist "release/${PACKAGE_NAME}/dist"
+          cp -r node_modules "release/${PACKAGE_NAME}/node_modules"
+          cp package.json package-lock.json README.md AGENTS.md LICENSE "release/${PACKAGE_NAME}/"
+          cp .env.example "release/${PACKAGE_NAME}/.env.example"
+          cp Dockerfile docker-compose.yml "release/${PACKAGE_NAME}/"
+          cat > "release/${PACKAGE_NAME}/RUN.md" <<'EOF'
+          # Run
+
+          Start Web UI:
+
+          ```powershell
+          node dist/src/index.js web -p 3000
+          ```
+
+          The Web UI is available at:
+
+          ```text
+          http://localhost:3000
+          ```
+
+          Default login:
+
+          ```text
+          username: root
+          password: 123456
+          ```
+
+          The first login requires changing the default password.
+
+          API keys and Feishu settings can be configured in the Web UI settings page.
+          EOF
+
+      - name: Archive Windows package
         shell: pwsh
         run: |
           $archive = "release/$env:PACKAGE_NAME.zip"
           Compress-Archive -Path "release/$env:PACKAGE_NAME" -DestinationPath $archive -Force
           $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLower()
-          "$hash  $env:PACKAGE_NAME.zip" | Set-Content -Path "release/$env:PACKAGE_NAME.sha256" -Encoding ascii
+          "$hash  $env:PACKAGE_NAME.zip" | Set-Content -Path "release/checksums-windows.txt" -Encoding ascii
 
-      - name: Archive macOS release
-        if: matrix.platform == 'macos'
-        shell: bash
-        run: |
-          cd release
-          tar -czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
-          shasum -a 256 "${PACKAGE_NAME}.tar.gz" > "${PACKAGE_NAME}.sha256"
-
-      - name: Upload release assets
+      - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            release/${{ env.PACKAGE_NAME }}.${{ matrix.archive }}
-            release/${{ env.PACKAGE_NAME }}.sha256
+            release/wechat-knowledge-base-windows-*.zip
+            release/checksums-windows.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
