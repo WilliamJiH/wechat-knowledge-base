@@ -228,6 +228,13 @@
             class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
             placeholder="留空则不修改；填写后覆盖现有配置" />
         </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">DEEPSEEK_BASE_URL</label>
+          <input id="settingsDeepseekBaseUrl"
+            class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            placeholder="例如 https://api.deepseek.com/v1；留空则不修改" />
+          <p id="deepseekBaseUrlEffective" class="text-xs text-gray-400 mt-1"></p>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-[1fr_160px] gap-3">
           <div>
             <label class="block text-xs text-gray-500 mb-1">EMBEDDING_API_KEY</label>
@@ -1027,6 +1034,7 @@ function settingsStatusText(label, configured) {
 function clearSettingsInputs() {
   [
     'settingsDeepseekKey',
+    'settingsDeepseekBaseUrl',
     'settingsEmbeddingKey',
     'settingsFeishuAppId',
     'settingsFeishuAppSecret',
@@ -1042,7 +1050,10 @@ async function loadSettings() {
     const api = data.api || {};
     const feishu = data.feishu || {};
     document.getElementById('settingsEmbeddingProvider').value = api.embeddingProvider || 'siliconflow';
+    document.getElementById('settingsDeepseekBaseUrl').value = api.deepseekBaseUrl || '';
     document.getElementById('settingsEmbeddingBaseUrl').value = api.embeddingBaseUrl || '';
+    document.getElementById('deepseekBaseUrlEffective').textContent =
+      `当前生效地址：${api.deepseekBaseUrlEffective || '未设置'}`;
     document.getElementById('embeddingBaseUrlEffective').textContent =
       `当前生效地址：${api.embeddingBaseUrlEffective || '未设置'}`;
     apiStatus.textContent = [
@@ -1068,6 +1079,7 @@ async function saveApiSettingsUi() {
   try {
     const body = {
       deepseekApiKey: document.getElementById('settingsDeepseekKey').value,
+      deepseekBaseUrl: document.getElementById('settingsDeepseekBaseUrl').value,
       embeddingApiKey: document.getElementById('settingsEmbeddingKey').value,
       embeddingProvider: document.getElementById('settingsEmbeddingProvider').value,
       embeddingBaseUrl: document.getElementById('settingsEmbeddingBaseUrl').value,
