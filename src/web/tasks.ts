@@ -398,6 +398,10 @@ export function getHistory(limit: number = 50): ExecutionRecord[] {
   return loadHistory().slice(0, limit);
 }
 
+export function clearHistory(): void {
+  saveHistory([]);
+}
+
 /** 清理所有定时器（进程退出时调用） */
 export function shutdownTaskManager(): void {
   for (const [id, timer] of activeTimers) {

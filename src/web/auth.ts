@@ -135,6 +135,10 @@ export function logout(req: Request, res: Response): void {
   res.json({ success: true });
 }
 
+export function clearAuthSessions(): void {
+  sessions.clear();
+}
+
 export function changePassword(req: Request, res: Response): void {
   const session = getSession(req);
   if (!session) {

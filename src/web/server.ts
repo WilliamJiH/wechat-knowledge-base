@@ -13,6 +13,7 @@ import {
   getHistory,
   addHistoryRecord,
   updateHistoryRecord,
+  clearHistory,
   shutdownTaskManager,
   crawlEvents,
   CrawlProgressEvent,
@@ -31,9 +32,10 @@ import {
 import { processArticleWithReport } from '../scheduler';
 import { config } from '../config';
 import { initDB } from '../storage';
+import { closeDB } from '../storage/db';
 import { cleanupRuntimeArtifacts } from '../runtime/cleanup';
 import * as fs from 'fs';
-import { authStatus, changePassword, login, logout, requireAuth } from './auth';
+import { authStatus, changePassword, clearAuthSessions, login, logout, requireAuth } from './auth';
 import { getLLMUsage } from '../usage/llm';
 import { applyRuntimeSettings, getSettingsStatus, saveApiSettings, saveFeishuSettings } from '../config/settings';
 import { resetLLMClient } from '../agents/llm';
@@ -145,6 +147,55 @@ function createZip(files: { name: string; data: Buffer; mtime: Date }[]): Buffer
   end.writeUInt16LE(0, 20);
 
   return Buffer.concat([...localParts, centralDirectory, end]);
+}
+
+function removeKnowledgeBaseEntry(relativePath: string): void {
+  const base = path.resolve(config.knowledgeBasePath);
+  const target = path.resolve(base, relativePath);
+  if (target !== base && !target.startsWith(base + path.sep)) {
+    throw new Error(`Refusing to delete outside knowledge base: ${relativePath}`);
+  }
+  fs.rmSync(target, { recursive: true, force: true });
+}
+
+function resetProjectData(): void {
+  shutdownTaskManager();
+  closeDB();
+  cleanupRuntimeArtifacts();
+
+  [
+    'db',
+    'embeddings',
+    'raw',
+    'markdown',
+    'images',
+    'evolution',
+    'reports',
+  ].forEach(removeKnowledgeBaseEntry);
+
+  [
+    'execution_history.json',
+    'index.json',
+    'scheduled_tasks.json',
+    'wechat_platform_session.json',
+    'wechat_qrcode.png',
+    'wechat_subscriptions.json',
+    'web_auth.json',
+    'llm_usage.json',
+    'app_settings.json',
+    'agent_prompts.json',
+  ].forEach(removeKnowledgeBaseEntry);
+
+  clearAuthSessions();
+  config.deepseek.apiKey = process.env.DEEPSEEK_API_KEY || '';
+  config.embedding.apiKey = process.env.EMBEDDING_API_KEY || process.env.DEEPSEEK_API_KEY || '';
+  config.embedding.baseUrl = process.env.EMBEDDING_BASE_URL || 'https://api.siliconflow.cn/v1';
+  config.embedding.model = process.env.EMBEDDING_MODEL || 'BAAI/bge-m3';
+  config.embedding.enabled = !!(process.env.EMBEDDING_API_KEY || process.env.EMBEDDING_BASE_URL);
+  config.feishu.appId = process.env.FEISHU_APP_ID || '';
+  config.feishu.appSecret = process.env.FEISHU_APP_SECRET || '';
+  config.feishu.wikiSpaceId = process.env.FEISHU_WIKI_SPACE_ID || '';
+  resetLLMClient();
 }
 
 function normalizeWechatLoginError(err: any): string {
@@ -461,6 +512,21 @@ app.get('/api/history', (req, res) => {
   const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
   const history = getHistory(limit);
   res.json({ history });
+});
+
+app.delete('/api/history', (_req, res) => {
+  clearHistory();
+  res.json({ success: true });
+});
+
+app.post('/api/reset', (_req, res) => {
+  try {
+    resetProjectData();
+    res.setHeader('Set-Cookie', 'wkb_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || String(err) });
+  }
 });
 
 app.get('/api/reports', (_req, res) => {

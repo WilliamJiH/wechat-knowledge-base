@@ -6,6 +6,7 @@ import { critiqueAnalysis, CritiqueResult } from './critic';
 import { strategize, StrategyResult } from './strategist';
 import { getArticle, insertClaim, updateArticleStatus } from '../storage';
 import { config } from '../config';
+import { withLLMUsageRound } from '../usage/llm';
 
 export type { AnalysisResult } from './analyst';
 export type { CritiqueResult } from './critic';
@@ -39,6 +40,7 @@ export async function runAgentPipeline(
 
   // 1. Analyst: 提取观点
   onProgress?.('analyst', 'Analyst 正在分析观点...');
+  const { analysis, critique, strategy } = await withLLMUsageRound(article.doc_id, article.title, async () => {
   const analysis = await analyzeArticle(markdown, article.title);
 
   // 2. Critic: 批判性分析
@@ -48,6 +50,8 @@ export async function runAgentPipeline(
   // 3. Strategist: 知识整合
   onProgress?.('strategist', 'Strategist 正在整合知识...');
   const strategy = await strategize(article.title, analysis, critique);
+  return { analysis, critique, strategy };
+  });
 
   // 4. 将有效观点保存到数据库
   for (const claim of critique.validated_claims) {
