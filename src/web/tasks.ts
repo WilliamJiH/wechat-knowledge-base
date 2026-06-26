@@ -183,7 +183,7 @@ async function executeTaskWithProgress(task: ScheduledTask, sessionId: string): 
       const { indexArticle } = await import('../embedding');
       const { runAgentPipeline } = await import('../agents');
       const { generateEvolution } = await import('../evolution');
-      const { appendEvolutionToFeishuReport, isFeishuConfigured, syncAnalysisReport } = await import('../feishu');
+      const { appendEvolutionToFeishuReport, formatFeishuError, isFeishuConfigured, syncAnalysisReport } = await import('../feishu');
       const fsModule = await import('fs');
 
       const crawlResult = await crawlWechatArticle(url);
@@ -209,7 +209,7 @@ async function executeTaskWithProgress(task: ScheduledTask, sessionId: string): 
           await syncAnalysisReport(crawlResult.doc_id, crawlResult.title, report);
           await appendEvolutionToFeishuReport(crawlResult.doc_id, evolution);
         } catch (err) {
-          console.error('[Feishu] Report sync failed:', err);
+          console.error(`[Feishu] Report sync failed: ${formatFeishuError(err)}`);
         }
       }
 
