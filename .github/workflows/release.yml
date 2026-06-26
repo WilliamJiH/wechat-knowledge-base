@@ -92,14 +92,22 @@ jobs:
           API keys and Feishu settings can be configured in the Web UI settings page.
           EOF
 
+      - name: Archive Windows release
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $archive = "release/$env:PACKAGE_NAME.zip"
+          Compress-Archive -Path "release/$env:PACKAGE_NAME" -DestinationPath $archive -Force
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLower()
+          "$hash  $env:PACKAGE_NAME.zip" | Set-Content -Path "release/$env:PACKAGE_NAME.sha256" -Encoding ascii
+
+      - name: Archive macOS release
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
           cd release
-          if [ "${{ matrix.archive }}" = "zip" ]; then
-            zip -qr "${PACKAGE_NAME}.zip" "${PACKAGE_NAME}"
-            sha256sum "${PACKAGE_NAME}.zip" > "${PACKAGE_NAME}.sha256"
-          else
-            tar -czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
-            sha256sum "${PACKAGE_NAME}.tar.gz" > "${PACKAGE_NAME}.sha256"
-          fi
+          tar -czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
+          shasum -a 256 "${PACKAGE_NAME}.tar.gz" > "${PACKAGE_NAME}.sha256"
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
