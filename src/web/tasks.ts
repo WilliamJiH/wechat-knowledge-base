@@ -183,7 +183,7 @@ async function executeTaskWithProgress(task: ScheduledTask, sessionId: string): 
       const { indexArticle } = await import('../embedding');
       const { runAgentPipeline } = await import('../agents');
       const { generateEvolution } = await import('../evolution');
-      const { isFeishuConfigured, createFeishuDoc } = await import('../feishu');
+      const { appendEvolutionToFeishuReport, isFeishuConfigured, syncAnalysisReport } = await import('../feishu');
       const fsModule = await import('fs');
 
       const crawlResult = await crawlWechatArticle(url);
@@ -191,10 +191,6 @@ async function executeTaskWithProgress(task: ScheduledTask, sessionId: string): 
       emit(url, 'parse', `正在解析转换：${crawlResult.title}`);
       const mdPath = await parseAndSave(crawlResult);
       const markdown = fsModule.readFileSync(mdPath, 'utf-8');
-
-      if (isFeishuConfigured()) {
-        try { await createFeishuDoc(crawlResult.doc_id, crawlResult.title, markdown); } catch {}
-      }
 
       emit(url, 'index', '正在向量化索引...');
       await indexArticle(crawlResult.doc_id, markdown);
@@ -205,7 +201,17 @@ async function executeTaskWithProgress(task: ScheduledTask, sessionId: string): 
       });
 
       emit(url, 'evolve', '正在生成演化链...');
-      await generateEvolution(crawlResult.doc_id, pipelineResult.analysis.claims);
+      const evolution = await generateEvolution(crawlResult.doc_id, pipelineResult.analysis.claims);
+
+      if (isFeishuConfigured()) {
+        try {
+          const report = fsModule.readFileSync(pipelineResult.reportPath, 'utf-8');
+          await syncAnalysisReport(crawlResult.doc_id, crawlResult.title, report);
+          await appendEvolutionToFeishuReport(crawlResult.doc_id, evolution);
+        } catch (err) {
+          console.error('[Feishu] Report sync failed:', err);
+        }
+      }
 
       updateHistoryRecord(recordId, {
         status: 'success',

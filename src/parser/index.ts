@@ -83,6 +83,7 @@ export async function parseAndSave(crawlResult: CrawlResult): Promise<string> {
     source,
     markdown_path: mdPath,
     feishu_doc_id: null,
+    feishu_report_doc_id: null,
   });
   updateArticleStatus(doc_id, 'parsed');
 

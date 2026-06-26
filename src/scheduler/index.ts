@@ -5,7 +5,7 @@ import { parseAndSave } from '../parser';
 import { indexArticle } from '../embedding';
 import { runAgentPipeline } from '../agents';
 import { generateEvolution } from '../evolution';
-import { createFeishuDoc, isFeishuConfigured } from '../feishu';
+import { appendEvolutionToFeishuReport, isFeishuConfigured, syncAnalysisReport } from '../feishu';
 import { getAllArticles, getArticle } from '../storage';
 import * as fs from 'fs';
 
@@ -24,25 +24,26 @@ export async function processArticleWithReport(url: string): Promise<ProcessArti
   // 2. 解析转换
   const mdPath = await parseAndSave(crawlResult);
 
-  // 3. 飞书同步（可选）
-  if (isFeishuConfigured()) {
-    const markdown = fs.readFileSync(mdPath, 'utf-8');
-    try {
-      await createFeishuDoc(crawlResult.doc_id, crawlResult.title, markdown);
-    } catch (err) {
-      console.error(`[Feishu] 同步失败:`, err);
-    }
-  }
-
-  // 4. 向量化索引
+  // 3. 向量化索引
   const markdown = fs.readFileSync(mdPath, 'utf-8');
   await indexArticle(crawlResult.doc_id, markdown);
 
-  // 5. 多Agent分析
+  // 4. 多Agent分析
   const pipelineResult = await runAgentPipeline(crawlResult.doc_id);
 
-  // 6. 观点演化
-  await generateEvolution(crawlResult.doc_id, pipelineResult.analysis.claims);
+  // 5. 观点演化
+  const evolution = await generateEvolution(crawlResult.doc_id, pipelineResult.analysis.claims);
+
+  // 6. 飞书同步（可选）：报告在演进完成后写入知识库。
+  if (isFeishuConfigured()) {
+    try {
+      const report = fs.readFileSync(pipelineResult.reportPath, 'utf-8');
+      await syncAnalysisReport(crawlResult.doc_id, crawlResult.title, report);
+      await appendEvolutionToFeishuReport(crawlResult.doc_id, evolution);
+    } catch (err) {
+      console.error(`[Feishu] 报告同步失败:`, err);
+    }
+  }
 
   return { docId: crawlResult.doc_id, reportPath: pipelineResult.reportPath };
 }
@@ -86,7 +87,16 @@ export function startScheduler(rssFeeds: string[] = []): void {
             );
             await indexArticle(result.doc_id, md);
             const pipeline = await runAgentPipeline(result.doc_id);
-            await generateEvolution(result.doc_id, pipeline.analysis.claims);
+            const evolution = await generateEvolution(result.doc_id, pipeline.analysis.claims);
+            if (isFeishuConfigured()) {
+              try {
+                const report = fs.readFileSync(pipeline.reportPath, 'utf-8');
+                await syncAnalysisReport(result.doc_id, result.title, report);
+                await appendEvolutionToFeishuReport(result.doc_id, evolution);
+              } catch (err) {
+                console.error(`[Feishu] 报告同步失败:`, err);
+              }
+            }
           } catch (err) {
             console.error(`[Scheduler] 处理文章失败: ${result.title}`, err);
           }

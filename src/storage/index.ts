@@ -6,6 +6,7 @@ export {
   getAllArticles,
   updateArticleStatus,
   updateFeishuDocId,
+  updateFeishuReportDocId,
   insertClaim,
   getClaimsByDocId,
   getAllClaims,
