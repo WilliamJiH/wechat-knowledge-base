@@ -2,13 +2,20 @@ import OpenAI from 'openai';
 import { config } from '../config';
 import { recordLLMUsage } from '../usage/llm';
 
+const nodeFetch: any = require('node-fetch');
 let client: OpenAI | null = null;
+
+function fetchWithoutCompression(url: any, init?: any): Promise<any> {
+  return nodeFetch(url, { ...init, compress: false });
+}
 
 export function getLLMClient(): OpenAI {
   if (!client) {
     client = new OpenAI({
       apiKey: config.deepseek.apiKey,
       baseURL: `${config.deepseek.baseUrl}`,
+      fetch: fetchWithoutCompression,
+      maxRetries: 0,
     });
   }
   return client;
