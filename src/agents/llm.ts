@@ -35,6 +35,44 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function serializeError(err: any): Record<string, unknown> {
+  const result: Record<string, unknown> = {
+    name: err?.name,
+    message: err?.message || String(err),
+    status: err?.status,
+    code: err?.code,
+    type: err?.type,
+  };
+
+  if (err?.cause) {
+    result.cause = {
+      name: err.cause?.name,
+      message: err.cause?.message || String(err.cause),
+      code: err.cause?.code,
+      errno: err.cause?.errno,
+      syscall: err.cause?.syscall,
+      address: err.cause?.address,
+      port: err.cause?.port,
+    };
+  }
+
+  if (err?.headers) result.headers = err.headers;
+  if (err?.stack) result.stack = err.stack;
+  return result;
+}
+
+function logLLMError(err: any, context: { attempt: number; maxAttempts: number; model: string }): void {
+  const details = {
+    attempt: context.attempt,
+    maxAttempts: context.maxAttempts,
+    model: context.model,
+    baseURL: config.deepseek.baseUrl,
+    retryable: isRetryableLLMError(err),
+    error: serializeError(err),
+  };
+  console.error('[LLM] Detailed request failure:', JSON.stringify(details, null, 2));
+}
+
 export async function chatCompletion(
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
   options?: {
@@ -68,6 +106,7 @@ export async function chatCompletion(
       trackUsage(response);
       return response.choices[0]?.message?.content || '';
     } catch (err: any) {
+      logLLMError(err, { attempt, maxAttempts, model });
       if (attempt >= maxAttempts || !isRetryableLLMError(err)) {
         throw err;
       }
