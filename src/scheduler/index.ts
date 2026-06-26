@@ -5,7 +5,7 @@ import { parseAndSave } from '../parser';
 import { indexArticle } from '../embedding';
 import { runAgentPipeline } from '../agents';
 import { generateEvolution } from '../evolution';
-import { appendEvolutionToFeishuReport, isFeishuConfigured, syncAnalysisReport } from '../feishu';
+import { appendEvolutionToFeishuReport, formatFeishuError, isFeishuConfigured, syncAnalysisReport } from '../feishu';
 import { getAllArticles, getArticle } from '../storage';
 import * as fs from 'fs';
 
@@ -41,7 +41,7 @@ export async function processArticleWithReport(url: string): Promise<ProcessArti
       await syncAnalysisReport(crawlResult.doc_id, crawlResult.title, report);
       await appendEvolutionToFeishuReport(crawlResult.doc_id, evolution);
     } catch (err) {
-      console.error(`[Feishu] 报告同步失败:`, err);
+      console.error(`[Feishu] 报告同步失败: ${formatFeishuError(err)}`);
     }
   }
 
@@ -94,7 +94,7 @@ export function startScheduler(rssFeeds: string[] = []): void {
                 await syncAnalysisReport(result.doc_id, result.title, report);
                 await appendEvolutionToFeishuReport(result.doc_id, evolution);
               } catch (err) {
-                console.error(`[Feishu] 报告同步失败:`, err);
+                console.error(`[Feishu] 报告同步失败: ${formatFeishuError(err)}`);
               }
             }
           } catch (err) {

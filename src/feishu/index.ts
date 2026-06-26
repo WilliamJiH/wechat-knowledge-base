@@ -121,14 +121,38 @@ export async function appendEvolutionToFeishuReport(
   console.log(`[Feishu] Knowledge evolution appended: ${article.feishu_report_doc_id}`);
 }
 
-/** Convert Markdown into structured Feishu document blocks. */
+export function formatFeishuError(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    const detail = typeof error.response?.data === 'string'
+      ? error.response.data
+      : error.response?.data?.msg || error.response?.data?.message;
+    return [status ? `HTTP ${status}` : '', detail || error.message].filter(Boolean).join(': ');
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Convert Markdown into structured Feishu document blocks and append them to a document. */
 async function writeDocContent(token: string, docId: string, markdown: string): Promise<void> {
-  await axios.post(
-    `${FEISHU_API_BASE}/docx/v1/documents/${docId}/blocks/convert`,
+  const converted = await axios.post(
+    `${FEISHU_API_BASE}/docx/v1/documents/blocks/convert`,
     {
       content_type: 'markdown',
       content: markdown,
     },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  const data = converted.data?.data || converted.data || {};
+  const blocks = Array.isArray(data.blocks) ? data.blocks : [];
+  const childIds = Array.isArray(data.first_level_block_ids) ? data.first_level_block_ids : [];
+  if (!blocks.length || !childIds.length) {
+    throw new Error('Feishu Markdown conversion returned no document blocks');
+  }
+
+  await axios.post(
+    `${FEISHU_API_BASE}/docx/v1/documents/${docId}/blocks/${docId}/descendant`,
+    { children_id: childIds, descendants: blocks, index: -1 },
     { headers: { Authorization: `Bearer ${token}` } }
   );
 }
