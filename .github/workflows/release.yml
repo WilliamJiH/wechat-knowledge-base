@@ -2,10 +2,6 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      reason:
-        description: "Reason"
-        required: false
   push:
     tags:
       - "v*"
@@ -15,9 +11,20 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build release assets
-    runs-on: ubuntu-latest
+  build:
+    name: Build ${{ matrix.platform }} release
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            archive: zip
+          - os: macos-latest
+            platform: macos
+            archive: tar.gz
 
     steps:
       - name: Checkout
@@ -30,7 +37,7 @@ jobs:
         run: |
           VERSION="$(git describe --tags --always)"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
-          echo "PACKAGE_NAME=wechat-knowledge-base-${VERSION}" >> "$GITHUB_ENV"
+          echo "PACKAGE_NAME=wechat-knowledge-base-${VERSION}-${{ matrix.platform }}" >> "$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -42,27 +49,24 @@ jobs:
         run: npm ci
 
       - name: Build
+        shell: bash
         run: |
           npm run build
           mkdir -p "dist/src/web"
           cp -r "src/web/public" "dist/src/web/public"
+          npm prune --omit=dev
 
       - name: Create release package
         shell: bash
         run: |
           mkdir -p "release/${PACKAGE_NAME}"
           cp -r dist "release/${PACKAGE_NAME}/dist"
+          cp -r node_modules "release/${PACKAGE_NAME}/node_modules"
           cp package.json package-lock.json README.md AGENTS.md LICENSE "release/${PACKAGE_NAME}/"
           cp .env.example "release/${PACKAGE_NAME}/.env.example"
           cp Dockerfile docker-compose.yml "release/${PACKAGE_NAME}/"
           cat > "release/${PACKAGE_NAME}/RUN.md" <<'EOF'
           # Run
-
-          Install production dependencies:
-
-          ```bash
-          npm ci --omit=dev
-          ```
 
           Start Web UI:
 
@@ -84,19 +88,25 @@ jobs:
           ```
 
           The first login requires changing the default password.
+
+          API keys and Feishu settings can be configured in the Web UI settings page.
           EOF
+
           cd release
-          tar -czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
-          zip -qr "${PACKAGE_NAME}.zip" "${PACKAGE_NAME}"
-          sha256sum "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}.zip" > "checksums.txt"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            zip -qr "${PACKAGE_NAME}.zip" "${PACKAGE_NAME}"
+            sha256sum "${PACKAGE_NAME}.zip" > "${PACKAGE_NAME}.sha256"
+          else
+            tar -czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
+            sha256sum "${PACKAGE_NAME}.tar.gz" > "${PACKAGE_NAME}.sha256"
+          fi
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            release/${{ env.PACKAGE_NAME }}.tar.gz
-            release/${{ env.PACKAGE_NAME }}.zip
-            release/checksums.txt
+            release/${{ env.PACKAGE_NAME }}.${{ matrix.archive }}
+            release/${{ env.PACKAGE_NAME }}.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
