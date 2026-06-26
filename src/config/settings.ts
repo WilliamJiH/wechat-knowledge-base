@@ -6,6 +6,7 @@ export type EmbeddingProvider = 'openai' | 'siliconflow';
 export interface RuntimeSettings {
   api?: {
     deepseekApiKey?: string;
+    deepseekBaseUrl?: string;
     embeddingApiKey?: string;
     embeddingProvider?: EmbeddingProvider;
     embeddingBaseUrl?: string;
@@ -54,6 +55,7 @@ export function saveApiSettings(input: Record<string, unknown>): RuntimeSettings
   const current = loadRuntimeSettings();
   const api = mergeDefined(current.api || {}, {
     deepseekApiKey: input.deepseekApiKey,
+    deepseekBaseUrl: input.deepseekBaseUrl,
     embeddingApiKey: input.embeddingApiKey,
     embeddingProvider: input.embeddingProvider,
     embeddingBaseUrl: input.embeddingBaseUrl,
@@ -94,6 +96,7 @@ export function applyRuntimeSettings(config: any): void {
   const provider = runtime.api?.embeddingProvider || inferEmbeddingProvider(config.embedding.baseUrl);
 
   if (runtime.api?.deepseekApiKey) config.deepseek.apiKey = runtime.api.deepseekApiKey;
+  if (runtime.api?.deepseekBaseUrl) config.deepseek.baseUrl = runtime.api.deepseekBaseUrl;
   if (runtime.api?.embeddingApiKey) config.embedding.apiKey = runtime.api.embeddingApiKey;
   if (runtime.api?.embeddingProvider) config.embedding.model = defaultEmbeddingModel(provider);
   if (runtime.api?.embeddingBaseUrl) {
@@ -114,6 +117,8 @@ export function getSettingsStatus(config: any) {
   return {
     api: {
       deepseekApiKeyConfigured: !!config.deepseek.apiKey,
+      deepseekBaseUrl: runtime.api?.deepseekBaseUrl || '',
+      deepseekBaseUrlEffective: config.deepseek.baseUrl,
       embeddingApiKeyConfigured: !!config.embedding.apiKey,
       embeddingProvider: provider,
       embeddingBaseUrl: runtime.api?.embeddingBaseUrl || '',
