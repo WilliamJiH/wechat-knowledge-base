@@ -4,7 +4,6 @@ import { recordLLMUsage } from '../usage/llm';
 
 let client: OpenAI | null = null;
 
-/** 获取 OpenAI 客户端（兼容 DeepSeek API） */
 export function getLLMClient(): OpenAI {
   if (!client) {
     client = new OpenAI({
@@ -19,7 +18,23 @@ export function resetLLMClient(): void {
   client = null;
 }
 
-/** 发送聊天请求 */
+function isRetryableLLMError(err: any): boolean {
+  const message = String(err?.message || err || '');
+  return (
+    err?.status === 429 ||
+    err?.status >= 500 ||
+    /premature close/i.test(message) ||
+    /fetch failed/i.test(message) ||
+    /network/i.test(message) ||
+    /socket hang up/i.test(message) ||
+    /ECONNRESET|ETIMEDOUT|EAI_AGAIN|UND_ERR/i.test(message)
+  );
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function chatCompletion(
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
   options?: {
@@ -28,7 +43,6 @@ export async function chatCompletion(
     maxTokens?: number;
   }
 ): Promise<string> {
-  const llm = getLLMClient();
   const model = options?.model || config.deepseek.model;
   const trackUsage = (response: any) => {
     const usage = response?.usage;
@@ -41,44 +55,42 @@ export async function chatCompletion(
     });
   };
 
-  try {
-    const response = await llm.chat.completions.create({
-      model,
-      messages,
-      temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens ?? 4096,
-    });
-
-    trackUsage(response);
-    return response.choices[0]?.message?.content || '';
-  } catch (err: any) {
-    // 重试一次
-    if (err?.status === 429 || err?.status >= 500) {
-      console.log(`[LLM] 请求失败 (${err.status})，3秒后重试...`);
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      const response = await llm.chat.completions.create({
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await getLLMClient().chat.completions.create({
         model,
         messages,
         temperature: options?.temperature ?? 0.7,
         max_tokens: options?.maxTokens ?? 4096,
       });
+
       trackUsage(response);
       return response.choices[0]?.message?.content || '';
+    } catch (err: any) {
+      if (attempt >= maxAttempts || !isRetryableLLMError(err)) {
+        throw err;
+      }
+
+      const delayMs = 2000 * attempt;
+      const status = err?.status ? `HTTP ${err.status}` : 'network';
+      console.log(`[LLM] Request failed (${status}), retrying in ${delayMs / 1000}s...`);
+      resetLLMClient();
+      await wait(delayMs);
     }
-    throw err;
   }
+
+  throw new Error('LLM request failed');
 }
 
-/** 发送 JSON 格式的聊天请求，期望返回 JSON */
 export async function chatCompletionJSON<T>(
   messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
   options?: { model?: string; temperature?: number; maxTokens?: number }
 ): Promise<T> {
   const content = await chatCompletion(messages, options);
-  // 尝试提取 JSON
   const jsonMatch = content.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
   if (!jsonMatch) {
-    throw new Error(`LLM 返回的不是有效 JSON:\n${content}`);
+    throw new Error(`LLM returned invalid JSON:\n${content}`);
   }
   return JSON.parse(jsonMatch[0]) as T;
 }
